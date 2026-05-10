@@ -7,7 +7,6 @@
 <p align="center">Every claim ships with the harness that proves it. Run the benchmarks yourself.</p>
 
 <p align="center">
-  <a href="https://github.com/CodeAbra/iai-mcp/issues"><img src="https://img.shields.io/github/issues/CodeAbra/iai-mcp?style=flat" alt="GitHub issues"></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-blue.svg" alt="License: MIT"></a>
   <img src="https://img.shields.io/badge/python-3.11%20%7C%203.12-blue.svg" alt="Python 3.11 | 3.12">
   <img src="https://img.shields.io/badge/platform-macOS-lightgrey.svg" alt="Platform: macOS">
@@ -57,13 +56,13 @@ I built this for myself. It worked. I've been running it daily for months, and n
 
 ### Prerequisites
 
-- macOS or Linux (Apple Silicon and x86_64 tested)
+- macOS (Apple Silicon and Intel tested)
 - Python 3.11 or 3.12
 - Node.js 18+
 - [Claude Code](https://docs.claude.com/en/docs/claude-code/overview) as the MCP host
 - ~500 MB free disk
 
-Windows not supported. WSL2 untested.
+Windows and Linux not supported.
 
 ### Install
 
@@ -80,16 +79,6 @@ Make sure `~/.local/bin` is on your `PATH`:
 ```bash
 export PATH="$HOME/.local/bin:$PATH"  # add to ~/.zshrc or ~/.bashrc
 iai-mcp --version
-```
-
-On Linux, install the systemd unit manually:
-
-```bash
-mkdir -p ~/.config/systemd/user
-cp deploy/systemd/iai-mcp-daemon.service ~/.config/systemd/user/
-systemctl --user daemon-reload
-systemctl --user enable iai-mcp-daemon
-systemctl --user start iai-mcp-daemon
 ```
 
 ### Install the Stop hook
@@ -143,7 +132,7 @@ Or edit `~/.claude.json` directly:
 
 Use the absolute path. `~` and `$HOME` won't expand here.
 
-For Claude Desktop (untested), edit `~/Library/Application Support/Claude/claude_desktop_config.json` on macOS or the equivalent path on Linux.
+For Claude Desktop (untested), edit `~/Library/Application Support/Claude/claude_desktop_config.json`.
 
 ### Verify
 
