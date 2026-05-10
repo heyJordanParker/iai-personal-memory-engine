@@ -56,7 +56,7 @@ I built this for myself. It worked. I've been running it daily for months, and n
 
 ### Prerequisites
 
-- macOS (Apple Silicon and Intel tested)
+- macOS (Apple Silicon tested)
 - Python 3.11 or 3.12
 - Node.js 18+
 - [Claude Code](https://docs.claude.com/en/docs/claude-code/overview) as the MCP host
