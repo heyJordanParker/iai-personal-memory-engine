@@ -1,6 +1,6 @@
 [project]
 name = "iai-mcp"
-version = "0.1.0"
+version = "0.2.0"
 description = "MCP server providing persistent verbatim memory and ambient capture for MCP-over-stdio hosts (developed against Claude Code)"
 requires-python = ">=3.11,<3.13"
 dependencies = [
