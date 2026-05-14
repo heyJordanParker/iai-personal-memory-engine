@@ -98,6 +98,10 @@ S4_FIRST_ITER_GRACE_SEC: float = float(
     os.environ.get("IAI_MCP_S4_FIRST_ITER_GRACE_SEC", str(S4_OFFLINE_INTERVAL_SEC)),
 )
 
+# Window inside which an MCP touch / open connection means the
+# daemon should defer the next sleep_pipeline chunk (interrupt).
+INTERRUPT_RECENT_ACTIVITY_WINDOW_SEC: float = 30.0
+
 
 # ---------------------------------------------------------------------------
 # WAKE -> DROWSY drain edge helpers
@@ -621,6 +625,32 @@ async def _tick_body(
                 except Exception:
                     pass
                 break
+
+            # Cooperative yield between REM cycles: if an MCP request landed recently
+            # or a socket connection is active, release the REM loop so the socket
+            # handler thread can take the GIL. Mirrors the SLEEP-state interrupt_check
+            # in lifecycle_tick; this branch protects the legacy _tick_body REM path
+            # which interrupt_check does not cover.
+            if mcp_socket is not None:
+                elapsed = time.monotonic() - mcp_socket.last_activity_ts
+                if (
+                    mcp_socket.active_connections > 0
+                    or elapsed < INTERRUPT_RECENT_ACTIVITY_WINDOW_SEC
+                ):
+                    try:
+                        await asyncio.to_thread(
+                            write_event,
+                            store,
+                            "daemon_yielded",
+                            {
+                                "reason": "mcp_recent_activity",
+                                "completed_cycles": completed,
+                            },
+                            severity="info",
+                        )
+                    except Exception:
+                        pass
+                    break
 
         # Write the recall payload once per REM-loop completion so the
         # SessionStart hook can read a file instead of dispatching a
@@ -1204,7 +1234,7 @@ async def main() -> int:
     SIGTERM/SIGINT/SIGHUP all set the shutdown event.
 
 
-    Tasks spawned (post-Phase-10.6):
+    Tasks spawned:
     - mcp_socket_task: SocketServer.serve — SOLE binder of
                              ~/.iai-mcp/.daemon.sock.
     - tick_task: scheduler tick loop (_scheduler_tick + _tick_body)
@@ -1708,9 +1738,6 @@ async def main() -> int:
     SLEEP_HEARTBEAT_IDLE_SEC: float = float(
         os.environ.get("LIFECYCLE_SLEEP_HEARTBEAT_IDLE_SEC", "1800")
     )  # 30 min — for IDLE_30MIN dispatch threshold
-    # Window inside which an MCP touch / open connection means the
-    # daemon should defer the next sleep_pipeline chunk (interrupt).
-    INTERRUPT_RECENT_ACTIVITY_WINDOW_SEC: float = 30.0
 
     # Track when WAKE last had heartbeat activity; the lifecycle
     # state machine's last_activity_ts in lifecycle_state.json is

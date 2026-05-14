@@ -75,18 +75,29 @@ if [[ -z "$transcript_path" || ! -f "$transcript_path" ]]; then
   exit 0
 fi
 
-# Locate the project's venv-installed `iai-mcp` CLI. Cache the last-known-good
-# path in ~/.iai-mcp/.cli-path to avoid re-scanning on every session end.
+# Locate the CLI. Lookup order:
+#   1. IAI_MCP_SESSION_CAPTURE_CLI environment variable (developer override
+#      for non-standard install locations; export in your shell init).
+#   2. ~/.iai-mcp/.cli-path cache file (auto-populated below once the
+#      candidates array finds a working binary).
+#   3. Generic install locations in the candidates array.
+# Only generic install paths are baked into the source; developer-specific
+# paths belong in the env var or the cache, never here.
 cli_cache="$HOME/.iai-mcp/.cli-path"
 iai_cli=""
-if [[ -f "$cli_cache" ]]; then
+if [[ -n "${IAI_MCP_SESSION_CAPTURE_CLI:-}" && -x "$IAI_MCP_SESSION_CAPTURE_CLI" ]]; then
+  iai_cli="$IAI_MCP_SESSION_CAPTURE_CLI"
+fi
+if [[ -z "$iai_cli" && -f "$cli_cache" ]]; then
   cached=$(cat "$cli_cache" 2>/dev/null || true)
   [[ -x "$cached" ]] && iai_cli="$cached"
 fi
 if [[ -z "$iai_cli" ]]; then
-  for candidate in \
-    "$HOME/IAI-MCP/.venv/bin/iai-mcp" \
-    "/usr/local/bin/iai-mcp"; do
+  candidates=(
+    "$HOME/IAI-MCP/.venv/bin/iai-mcp"
+    "/usr/local/bin/iai-mcp"
+  )
+  for candidate in "${candidates[@]}"; do
     if [[ -x "$candidate" ]]; then
       iai_cli="$candidate"
       printf '%s' "$iai_cli" > "$cli_cache" 2>/dev/null || true

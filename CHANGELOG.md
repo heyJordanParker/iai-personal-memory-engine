@@ -5,6 +5,18 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.4.1] — 2026-05-14
+
+### Fixed
+
+- **GIL contention between REM cycles and MCP requests**: `_tick_body` now breaks the REM loop when `mcp_socket` reports active connections or recent activity (within the 30 s interrupt window). Previously, the SLEEP-state `interrupt_check` in `lifecycle_tick` covered only the new-lifecycle path; the legacy `_tick_body` REM loop could hold the GIL through consecutive cycles, blocking `memory_recall` responses.
+- **`INTERRUPT_RECENT_ACTIVITY_WINDOW_SEC` promoted to module scope** so both `_tick_body` and `lifecycle_tick` reference the same constant. Previously duplicated as a local inside `main()`.
+
+### Added
+
+- **Session-capture hook**: `IAI_MCP_SESSION_CAPTURE_CLI` environment variable for developer-override of the CLI binary path. CLI lookup now uses a bash array instead of a backslash-continuation for-loop (mirrors the session-recall hook change in 0.4.0).
+- 2 new regression tests covering the MCP-yield branch (active vs. idle socket scenarios).
+
 ## [0.4.0] — 2026-05-13
 
 ### Added
@@ -90,6 +102,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 Initial public release. Local memory daemon for MCP-over-stdio hosts. Verbatim recall, ambient capture, sleep-cycle consolidation, encrypted-at-rest LanceDB store, configurable operating profile.
 
+[0.4.1]: https://github.com/CodeAbra/iai-mcp/releases/tag/v0.4.1
 [0.4.0]: https://github.com/CodeAbra/iai-mcp/releases/tag/v0.4.0
 [0.3.2]: https://github.com/CodeAbra/iai-mcp/releases/tag/v0.3.2
 [0.3.1]: https://github.com/CodeAbra/iai-mcp/releases/tag/v0.3.1

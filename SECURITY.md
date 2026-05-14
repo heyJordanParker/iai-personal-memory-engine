@@ -6,7 +6,7 @@ iai-mcp is pre-1.0 and experimental. Only the latest tagged release on `main` re
 
 | Version | Supported |
 |---------|-----------|
-| 0.4.x   | Yes (latest) |
+| 0.4.x   | Yes (latest, 0.4.1) |
 | 0.3.x   | Security fixes only |
 | < 0.3   | No |
 
