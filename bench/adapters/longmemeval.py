@@ -8,10 +8,10 @@ downstream is stock IAI-MCP.
 
 ## Dataset source
 
-The plan text (05-11-) cites ``lxucs/longmemeval`` — that repo does
+The original source ``lxucs/longmemeval`` does
 NOT exist on HuggingFace Hub (returns 401/Not Found). The canonical public
 mirror shipped by the paper authors is ``xiaowu0162/longmemeval``.
-Discovered mid-execution; documented as a Rule 3 deviation in the SUMMARY. DATASET_ID points at the live mirror; PINNED_REVISION is
+DATASET_ID points at the live mirror; PINNED_REVISION is
 the 40-char commit hash resolved at execution time so numbers reproduce.
 
 ## Row schema (longmemeval_s split, 500 rows)
@@ -30,9 +30,9 @@ Each row is:
       "answer_session_ids": list[str] # gold evidence (len typically 1)
     }
 
-## LMESession mapping (deviation, Rule 1/3)
+## LMESession mapping
 
-The plan's interface says "one session -> many queries". The actual dataset
+The interface specifies "one session -> many queries". The actual dataset
 is "one query -> many haystack sessions". We therefore flatten each row to
 a list of LMESession objects — one per haystack session — with the single
 eval query attached to every session in the row (so
@@ -40,14 +40,13 @@ bench/longmemeval_blind.py can iterate LMESessions, insert haystack turns,
 and run the query against the store). The orchestrator (not the adapter)
 scores at the standard LongMemEval session-ID granularity.
 
-The ``score_r_at_k`` method in this module implements the plan's literal
+The ``score_r_at_k`` method in this module implements the literal
 formula ``|retrieved ∩ relevant| / |relevant|`` over UUIDs — it is unit-
-testable and matches the Test 4 contract. The orchestrator also
+testable. The orchestrator also
 reports session-level R@k using the dataset's native session_id gold.
 """
 from __future__ import annotations
 
-import os
 import sys
 from dataclasses import dataclass
 from datetime import datetime, timezone
@@ -80,7 +79,7 @@ _SPLIT_FILENAMES: dict[str, str] = {
 class LMESession:
     """One flattened haystack session + its attached eval query.
 
-    See module docstring for why this differs from the plan's original
+    See module docstring for why this differs from the original
     "one session many queries" spec.
     """
 

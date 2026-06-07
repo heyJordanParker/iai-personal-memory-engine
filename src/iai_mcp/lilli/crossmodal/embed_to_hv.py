@@ -56,7 +56,7 @@ RANK_DEFICIENCY_MIN_BATCH_SIZE: int = 8
 
 #: Default deviation threshold for rank-deficiency detection.
 #: Chosen to sit between healthy-batch mean (~0.13) and clustered-batch
-#: deviation (~0.5). The 46-21 Gate 15(b) test uses 0.01 to guarantee
+#: deviation (~0.5). A test uses 0.01 to guarantee
 #: a trip on nearly-identical vectors.
 RANK_DEFICIENCY_DEFAULT_THRESHOLD: float = 0.2
 

@@ -10,7 +10,7 @@ entry point do not exist yet.
 Fence:
 - preserved (every recall still appends a provenance entry;
   writes are async but not dropped).
-- Rule 1: provenance-write failure never blocks recall.
+- Provenance-write failure never blocks recall.
 - C3/C6: no external deps, pure stdlib.
 """
 from __future__ import annotations

@@ -16,8 +16,7 @@ Property coverage uses stdlib `random.Random(seed)` fuzz against
 pytest.parametrize rather than Hypothesis, to avoid adding a new
 dev dependency. Coverage equivalent for the 3
 properties in the spec; loses Hypothesis shrinking but otherwise
-satisfies the validation requirement. Documented as a Rule 3
-deviation in the SUMMARY.
+satisfies the validation requirement.
 """
 from __future__ import annotations
 

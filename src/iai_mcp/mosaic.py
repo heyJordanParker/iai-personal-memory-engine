@@ -769,19 +769,19 @@ def compute_delta_q_cpm(
                                the symmetric CSR); zero means "use the
                                un-normalised form" (back-compat shape).
 
-    Plan-21-02 deviation note: the plan's `<action>` block writes the formula
+    The `<action>` block writes the formula
     WITHOUT the `/2m` denominator on the resolution term. That form is
     unsatisfiable at gamma=1.0 on Karate Club (typical k_i=5; resolution
     penalty per move ≈ 25, overwhelms the +1 edge gain, so no moves accept
     and NMI lands at 0.33). The advisor flagged the missing `/2m` factor;
-    we restore it here so the plan's own NMI >= 0.90 gate is satisfiable.
+    we restore it here so the NMI >= 0.90 gate is satisfiable.
     See `test_compute_delta_q_cpm_zero_for_no_move` for the analytic case
     (k_i=1, two_m=2 -> partial-ΔQ = -1.0) that exercises this.
 
-    The naming ("CPM") follows the plan's wording; the formula structure
+    The naming ("CPM") is conventional; the formula structure
     is RB-Configuration (`RBConfigurationVertexPartition` in leidenalg).
     True resolution-limit-free Traag-2011 CPM uses node counts rather
-    than degree sums in the resolution term and is a Plan-21-05 concern
+    than degree sums in the resolution term and is a future concern
     when the gamma tuner lands.
 
     `two_m=0.0` is treated as "no normalisation" so unit tests can exercise
@@ -836,7 +836,7 @@ def compute_modularity_cpm(
     Karate Club at the 2-faction partition with gamma=1.0 lands at
     Q ≈ 0.36 (Traag 2019 Fig. 4 reports 0.37-0.42 depending on the exact
     igraph internals). gates `>= 0.40`; if the formula lands
-    at 0.36 the SUMMARY records the gate as a documented deviation
+    at 0.36 the gate is recorded as a documented exception
     (slack to 0.35 -- still above the MODULARITY_FLOOR of 0.20).
     """
     n = partition.shape[0]
@@ -1266,7 +1266,7 @@ def _refinement_subgroup_merge(
     Visit pairs in a seeded order; accept greedy best per macro community.
 
     This is what canonical Leiden does at every level via the random-
-    subgroup-merge step. Plan line 225 made it optional; empirically
+    subgroup-merge step. The original pseudocode made it optional; empirically
     required for Karate at small N to consolidate the 4-way local
     maximum to the 2-way leidenalg parity.
 
@@ -1450,7 +1450,7 @@ def _super_level_merge(
         - 2 * gamma * sigma(ci) * sigma(cj) / (2m)^2
 
       Verified against Q-recompute on Karate at gamma=0.5: identical to
-      4 decimal places on every pair. Strictly equivalent to the plan's
+      4 decimal places on every pair. Strictly equivalent to the
       `q_after > q_before + EPSILON` formulation but ~3-10x faster
       (one CSR walk vs three full-Q evaluations per pair).
 
@@ -1662,7 +1662,7 @@ def _aggregate(
     # contributions from a (potentially singleton) set of prior int_to_uuid
     # keys.
     #
-    # Rule 1 auto-fix from integration (advisor-confirmed).
+    # Auto-fix for a 1-community partition.
     # The historical M3 code interpreted `prior_label` (a key in
     # `int_to_uuid`) as a LABEL VALUE that should appear in `refined`.
     # That convention works for the M2 single-pass case where the prior
@@ -1854,7 +1854,7 @@ def _run_one_leiden_pass(
     on COPIES of `partition` and `sigma_tot` so the caller's arrays are
     NOT mutated.
 
-    [Rule 1 auto-fix from plan pseudocode] Plan line 382-393 prescribed
+    Auto-fix: the original pseudocode prescribed
     "ONE iteration of Local Move + Refinement at given gamma", but the
     hard constraints scored against the returned partition (especially
     `n_communities > n/5` inside `should_fall_back_to_flat`) only make

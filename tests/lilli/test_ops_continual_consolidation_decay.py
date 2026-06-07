@@ -205,8 +205,8 @@ def test_temporal_decay_flips_more_at_higher_age():
     reliable ordering in the transition zone well away from saturation.
     At dt=200+ both saturate near 100% flips making comparison unreliable.
 
-    Note: Plan acceptance spec used dt=1000 vs dt=200 which both saturate --
-    amended here (Rule 1: test instability) to use dt=91 vs dt=100 which spans
+    Note: the original acceptance spec used dt=1000 vs dt=200 which both saturate --
+    amended here (test instability) to use dt=91 vs dt=100 which spans
     a reliable 10% vs 65% flip range with seed=42.
     """
     hv = bytes([0xFF] * 512)

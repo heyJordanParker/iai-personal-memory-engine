@@ -353,7 +353,7 @@ def query_events(
             try:
                 raw_data = decrypt_field(raw_data, store._key(), associated_data=ad)
             except (OSError, ValueError, RuntimeError) as exc:
-                # Rule 1 diagnostic semantics: a corrupt event row should not
+                # Diagnostic semantics: a corrupt event row should not
                 # fail the entire query. Return empty payload + mark in meta.
                 logging.getLogger(__name__).debug("event_decrypt_failed", extra={"id": row["id"], "err": str(exc)[:80]})
                 raw_data = "{}"

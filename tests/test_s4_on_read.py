@@ -403,7 +403,7 @@ def test_monotropic_check_missing_domain_tag_returns_empty(tmp_path):
 
 
 def test_monotropic_check_malformed_profile_state_degrades(tmp_path):
-    """Rule 1: if profile_state isn't shaped right, degrade silently to []."""
+    """If profile_state isn't shaped right, degrade silently to []."""
     from iai_mcp.s4 import monotropic_proactive_check
     from iai_mcp.store import MemoryStore
 

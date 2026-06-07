@@ -1816,7 +1816,7 @@ class MemoryStore:
             tbl.merge_insert("id").when_matched_update_all().execute(update_tbl)
         except Exception as exc:  # noqa: BLE001 -- fallback gate, must stay broad
             logger.warning("provenance merge_insert fallback triggered: %s", exc, exc_info=True)
-            # Rule 1: never block recall on a provenance-write failure.
+            # Never block recall on a provenance-write failure.
             # Fallback: per-id tbl.update() (slower but correct).
             for rid_str, new_json in zip(update_ids, update_prov):
                 try:

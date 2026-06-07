@@ -477,7 +477,7 @@ def test_empty_profile_state_falls_back_to_medium_scale(tmp_path):
 
 def test_dispatch_passes_profile_state_to_recall_for_response(tmp_path, monkeypatch):
     """core.py:dispatch must pass profile_state=_profile_state into the
-    recall_for_response call. Pre-Plan-06-03 the kwarg was missing — every
+    recall_for_response call. Previously the kwarg was missing — every
     knob value silently dropped before reaching the rank stage.
 
     Test pattern: monkey-patch iai_mcp.pipeline.recall_for_response with a

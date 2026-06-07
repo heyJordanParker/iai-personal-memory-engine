@@ -241,7 +241,7 @@ def detect_communities(
         flat.lineage_report = LineageReport(events=())
         return flat
 
-    # Rule 1 auto-fix from integration: a 1-community partition is
+    # Auto-fix: a 1-community partition is
     # semantically flat (CPM-Q can be > 0
     # for a fully-connected clique at gamma < 1.0, but a single community
     # covering every node is the same structural outcome as the explicit

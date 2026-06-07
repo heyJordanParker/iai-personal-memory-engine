@@ -14,7 +14,7 @@ the default gate (the perf regression guards):
   noise / page-cache misses, so a single unlucky GC pause or context switch
   cannot turn a passing bench red.
 
-Chosen defaults (documented per the plan's discretion clause):
+Chosen defaults:
 - ``threshold_per_core = 1.5`` — a 1-min load of 1.5× the core count is the
   conventional "machine is busy" line; above it, wall-clock timing is noise.
 - ``n = 3`` — three samples reliably reject a single transient outlier while

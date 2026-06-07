@@ -440,7 +440,7 @@ def test_aggregation_preserves_total_weight() -> None:
     twice). Aggregation bins per-edge weight into super-loops (intra-comm)
     or symmetric super-edges (inter-comm) without losing any weight.
 
-    Plan line 234 says "sum of all super-edge weights equals the sum of
+    The original spec says "sum of all super-edge weights equals the sum of
     inter-community weights in the input CSR" -- but the input CSR is
     symmetric, and intra-community weights also fold into super-loops, so
     the only mathematically clean invariant is total-weight conservation.

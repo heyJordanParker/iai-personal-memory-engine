@@ -235,7 +235,7 @@ def bundle(
     warn_threshold = math.ceil(BSC_SATURATION_WARN_RATIO * max_pairs)
 
     # STEP 1: EMIT TELEMETRY FIRST (before any raise).
-    # Emit at warn_threshold so the 46-21 Gate 18 contract observes the event
+    # Emit at warn_threshold so the saturation test observes the event
     # even when the call is immediately followed by a BundleCapacityError raise.
     if n >= warn_threshold and store is not None:
         try:

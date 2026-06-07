@@ -112,7 +112,7 @@ def test_default_invocation_keys_preserved(tmp_path):
         session_gap=2,
         noise_per_session=3,
     )
-    # Legacy keys (pre-Plan-05-01) still present.
+    # Legacy keys still present.
     for key in (
         "accuracy",
         "n_records",

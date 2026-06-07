@@ -229,7 +229,7 @@ def test_cpm_floor_calibrated_from_fixtures():
         f"CPM_MODULARITY_FLOOR = {CPM_MODULARITY_FLOOR} outside sanity bounds "
         "[0.05, 0.30] (Traag 2019 CPM-Q observations on Karate / Football). "
         "If the calibration sweep returns a value outside these bounds, "
-        "expand the fixture set or surface as a deviation in the SUMMARY."
+        "expand the fixture set or surface as a documented exception."
     )
 
 

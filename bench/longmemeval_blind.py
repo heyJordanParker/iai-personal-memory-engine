@@ -807,7 +807,7 @@ def main(argv: list[str] | None = None) -> int:
             }
             errors.append({"question_id": qid, **err_payload})
             # Counted as a full miss for both prongs — preserves
-            # "count against R@5 as 0" from the plan text.
+            # "count against R@5 as 0".
             r5_x_values.append(0.0)
             r10_x_values.append(0.0)
             r5_y_values.append(0.0)

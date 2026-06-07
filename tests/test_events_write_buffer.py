@@ -208,8 +208,8 @@ def test_store_pattern_separation_pass_uses_buffered_writes():
     """All pattern_separation_pass write_event call sites in store.py pass buffered=True.
 
     Static source check — simpler + more deterministic than driving the path.
-     claimed 5 sites; HEAD has 4 (lines 786, 799, 890, 942) — documented
-    as Rule 1 deviation in 27-03 SUMMARY.
+     claimed 5 sites; HEAD has 4 (lines 786, 799, 890, 942) — verified
+    and documented.
     """
     store_py = Path(__file__).resolve().parent.parent / "src" / "iai_mcp" / "store.py"
     text = store_py.read_text(encoding="utf-8")

@@ -61,9 +61,7 @@ def test_check_z_fail_when_avx2_missing(
 def test_run_diagnosis_includes_z_row() -> None:
     """run_diagnosis() returns 15 rows; the last is the new (z) AVX2 row.
 
-    The row order MUST place (z) last (after the existing a..n block) per
-    the plan's "Final order: a, b, c, d, e, f, g, h, i, j, k, l, m, n, z"
-    documentation update.
+    The row order MUST place (z) last, after the existing a..n block.
     """
     from iai_mcp.doctor import run_diagnosis
 
