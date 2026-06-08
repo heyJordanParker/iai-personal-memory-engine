@@ -78,6 +78,14 @@ build-backend = "setuptools.build_meta"
 [tool.setuptools.packages.find]
 where = ["src"]
 
+[tool.setuptools.package-data]
+iai_mcp = [
+    "_deploy/launchd/*.plist",
+    "_deploy/systemd/*.service",
+    "_deploy/hooks/*.sh",
+    "_wrapper/*.js",
+]
+
 [[tool.setuptools-rust.ext-modules]]
 target = "iai_mcp_native"
 path = "rust/iai_mcp_native/Cargo.toml"

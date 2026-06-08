@@ -137,7 +137,7 @@ iai-mcp capture-hooks install --target all
 
 What the install does:
 
-- Copies three hook scripts from `deploy/hooks/` to `~/.claude/hooks/` (chmod +x):
+- Copies three hook scripts bundled with the package to `~/.claude/hooks/` (chmod +x):
   - `iai-mcp-turn-capture.sh` (`UserPromptSubmit`, timeout 5s) — appends each prompt + the preceding assistant turn(s) to a per-session buffer as pure file IO. Zero engine RPC during the session.
   - `iai-mcp-session-capture.sh` (`Stop`, timeout 35s) — at session end, rolls the buffer over for the local engine to drain, and runs `iai-mcp capture-transcript --no-spawn` as a safety net.
   - `iai-mcp-session-recall.sh` (`SessionStart`, timeout 30s) — calls `iai-mcp session-start` and pipes the assembled memory prefix to stdout, which Claude Code injects as `additionalContext` before the first prompt. Fail-safe: empty store or unreachable local engine yields empty stdout — session start is never blocked.

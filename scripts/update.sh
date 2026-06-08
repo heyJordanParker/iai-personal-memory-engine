@@ -104,7 +104,7 @@ TEMPLATE_CHECK="$("${VENV_PY}" - <<'PY'
 import pathlib, sys
 home = pathlib.Path.home()
 installed = home / "Library/LaunchAgents/com.iai-mcp.daemon.plist"
-template  = pathlib.Path.cwd() / "deploy/launchd/com.iai-mcp.daemon.plist"
+template  = pathlib.Path.cwd() / "src" / "iai_mcp" / "_deploy" / "launchd" / "com.iai-mcp.daemon.plist"
 if not installed.exists() or not template.exists():
     print("none"); sys.exit(0)
 # Substitute USERNAME placeholder and compare env-var + args payload.

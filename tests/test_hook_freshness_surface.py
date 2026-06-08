@@ -42,7 +42,7 @@ pytestmark = pytest.mark.skipif(
 )
 
 REPO = Path(__file__).resolve().parent.parent
-HOOK = REPO / "deploy" / "hooks" / "iai-mcp-turn-capture.sh"
+HOOK = REPO / "src" / "iai_mcp" / "_deploy" / "hooks" / "iai-mcp-turn-capture.sh"
 
 
 def _skip_guards():

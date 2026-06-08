@@ -163,9 +163,9 @@ class TestPlistRendersFdFloor:
     that key must survive cli._render_launchd_plist."""
 
     def test_plist_template_contains_fd_key(self):
-        from iai_mcp.cli import LAUNCHD_TEMPLATE
+        from iai_mcp.cli import _launchd_template
 
-        text = LAUNCHD_TEMPLATE.read_text()
+        text = _launchd_template().read_text()
         assert "SoftResourceLimits" in text
         assert "NumberOfFiles" in text
 

@@ -1,23 +1,22 @@
 #!/usr/bin/env bash
-# IAI-MCP Stop hook — ambient WRITE-side capture.
+# iai-mcp Stop hook — ambient WRITE-side capture.
 #
 # Fires when a Claude Code session ends. Reads the session's JSONL transcript,
 # batch-captures user + assistant turns into the iai-mcp episodic tier through
-# `iai-mcp capture-transcript --no-spawn`. NEVER spawns a daemon (R3).
+# `iai-mcp capture-transcript --no-spawn`. NEVER spawns a daemon.
 # If the daemon is unreachable, the call defers events to
 # ~/.iai-mcp/.deferred-captures/ for the daemon to drain on next socket
-# activation (handled by drain_deferred_captures in daemon.main + _tick_body
-# WAKE handler —).
+# activation.
 #
 # Fail-safe by design: any error exits 0 so session teardown is never blocked.
 # Logs go to ~/.iai-mcp/logs/capture-YYYY-MM-DD.log for audit.
 #
 # Hook payload (stdin JSON from Claude Code) contains:
-# - session_id (UUID of the session that just ended)
-# - transcript_path (absolute path to the session JSONL) — available in
-# newer Claude Code builds; we fall back to scanning the
-# per-project transcript dir for the matching session_id.
-# - cwd (working directory at session end)
+#   - session_id       (UUID of the session that just ended)
+#   - transcript_path  (absolute path to the session JSONL) — available in
+#                      newer Claude Code builds; we fall back to scanning the
+#                      per-project transcript dir for the matching session_id.
+#   - cwd              (working directory at session end)
 
 set -u  # no -e: we must not abort on errors, fail-safe is paramount
 input=$(cat 2>/dev/null || true)
@@ -48,8 +47,8 @@ cwd=$(extract "cwd")
 if [[ -z "$transcript_path" && -n "$session_id" ]]; then
   projects_dir="$HOME/.claude/projects"
   if [[ -d "$projects_dir" ]]; then
-    # Look for the most recent file whose basename starts with session_id.
-    # ls -t (mtime newest first). Avoid `find` per the project's no-grep hook.
+    # Look for the file whose basename matches session_id. Iterate directories
+    # directly to stay portable across shells without relying on find.
     for d in "$projects_dir"/*/; do
       candidate="${d}${session_id}.jsonl"
       if [[ -f "$candidate" ]]; then
@@ -75,16 +74,17 @@ if [[ -z "$transcript_path" || ! -f "$transcript_path" ]]; then
   exit 0
 fi
 
-# Locate the project's venv-installed `iai-mcp` CLI. Cache the last-known-good
-# path in ~/.iai-mcp/.cli-path to avoid re-scanning on every session end.
-# Locate the CLI. Lookup order:
-# 1. IAI_MCP_SESSION_CAPTURE_CLI environment variable (developer override
-# for non-standard install locations; export in your shell init).
-# 2. ~/.iai-mcp/.cli-path cache file (auto-populated below once the
-# candidates array finds a working binary).
-# 3. Generic install locations in the candidates array.
-# Only generic install paths are baked into the source; developer-specific
-# paths belong in the env var or the cache, never here.
+# Locate the `iai-mcp` CLI. Resolution order:
+#   1. IAI_MCP_SESSION_CAPTURE_CLI environment variable — highest priority;
+#      set in your shell init for non-standard install locations.
+#   2. ~/.iai-mcp/.cli-path cache — written on first successful resolution
+#      so subsequent session-ends skip the scan entirely.
+#   3. `command -v iai-mcp` — PATH lookup; picks up pyenv shims, pipx
+#      wrappers, and any other PATH-managed install transparently.
+#   4. Baked-in candidate list — checked when PATH has no entry; covers
+#      common install locations (pyenv shims, pipx, homebrew, user-site).
+# Only generic $HOME-relative or system paths belong here; install-specific
+# paths belong in the env var or the cache.
 cli_cache="$HOME/.iai-mcp/.cli-path"
 iai_cli=""
 if [[ -n "${IAI_MCP_SESSION_CAPTURE_CLI:-}" && -x "$IAI_MCP_SESSION_CAPTURE_CLI" ]]; then
@@ -95,8 +95,18 @@ if [[ -z "$iai_cli" && -f "$cli_cache" ]]; then
   [[ -x "$cached" ]] && iai_cli="$cached"
 fi
 if [[ -z "$iai_cli" ]]; then
+  resolved=$(command -v iai-mcp 2>/dev/null || true)
+  if [[ -n "$resolved" && -x "$resolved" ]]; then
+    iai_cli="$resolved"
+    printf '%s' "$iai_cli" > "$cli_cache" 2>/dev/null || true
+  fi
+fi
+if [[ -z "$iai_cli" ]]; then
   candidates=(
-    "$HOME/IAI-MCP/.venv/bin/iai-mcp"
+    "$HOME/.pyenv/shims/iai-mcp"
+    "$HOME/.local/bin/iai-mcp"
+    "$HOME/.local/pipx/venvs/iai-mcp/bin/iai-mcp"
+    "/opt/homebrew/bin/iai-mcp"
     "/usr/local/bin/iai-mcp"
   )
   for candidate in "${candidates[@]}"; do
@@ -114,7 +124,7 @@ if [[ -z "$iai_cli" ]]; then
 fi
 
 # Atomically rename the active-writer marker so the drain can see it on the
-# next WAKE/DROWSY pass. Target name uses `.live-${epoch}.jsonl` so it never
+# next wake pass. Target name uses `.live-${epoch}.jsonl` so it never
 # collides with the safety-net output shape `${session_id}-${epoch}.jsonl`
 # in the same second. Also clean the per-session offset state — the session
 # is ending, no further per-turn writes will reference it.

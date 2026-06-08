@@ -17,16 +17,12 @@
     <true/>
 
     <!--
-      KeepAlive policy uses ONLY
-      `Crashed=true`. With this policy, launchd respawns ONLY on
-      a non-zero exit (the new lifecycle state machine exits 0
-      gracefully on Hibernation; an MCP wrapper kickstart is the
-      sole wake mechanism in steady state).
-
-      Removed: `SuccessfulExit=false`, which paired
-      with the legacy 75/0 exit-code branching. Now that exit code
-      is uniformly 0 for graceful shutdown, `SuccessfulExit=false`
-      would put us in a respawn loop.
+      KeepAlive policy uses ONLY `Crashed=true`. With this policy, launchd
+      respawns ONLY on a non-zero exit. The lifecycle state machine exits 0
+      gracefully on hibernation; an MCP wrapper kickstart is the sole wake
+      mechanism in steady state. `SuccessfulExit=false` is intentionally
+      omitted — with a uniform exit code of 0 for graceful shutdown it would
+      put the daemon in a respawn loop.
     -->
     <key>KeepAlive</key>
     <dict>
@@ -62,12 +58,7 @@
     <string>/Users/{USERNAME}</string>
 
     <!--
-      env-var update.
-      REMOVED:
-        - IAI_MCP_RSS_RESTART_THRESHOLD_MB (legacy RSS-watchdog gone)
-        - IAI_DAEMON_IDLE_SHUTDOWN_SECS (legacy socket idle_watcher gone)
-        - IAI_MCP_SKIP_STARTUP_OPTIMIZE (legacy boot-time optimize defer gone)
-      ADDED (lifecycle cadence + sleep quarantine):
+      Lifecycle cadence + sleep quarantine knobs:
         - LIFECYCLE_DROWSY_AFTER_SEC (default 300 == 5 min)
         - LIFECYCLE_SLEEP_HEARTBEAT_IDLE_SEC (default 1800 == 30 min)
         - LIFECYCLE_HIBERNATE_AFTER_SEC (default 7200 == 2 h)
@@ -96,8 +87,8 @@
           distinct from the observation-only CPU watchdog). The RSS hard cap +
           contributor floor are the measured-peak-derived safe bounds: the cap
           sits well above the legitimate consolidation peak (~593 MB) so it
-          never re-creates the old below-peak kill trap, and the floor clears
-          that peak yet stays strictly below the cap so a kill-on-pressure only
+          never re-creates a below-peak kill trap, and the floor clears that
+          peak yet stays strictly below the cap so a kill-on-pressure only
           fires when the daemon is itself a significant RAM contributor.
         -->
         <key>IAI_MCP_WATCHDOG_LIVENESS_POLL_SEC</key>

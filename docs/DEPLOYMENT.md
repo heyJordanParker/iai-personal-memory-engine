@@ -115,7 +115,7 @@ The installer:
    callable from anywhere without activating the venv.
 6. Optionally installs the sleep daemon: **launchd** on macOS (via
    `scripts/com.iai-mcp.daemon.plist.template`), **systemd** on Linux
-   (via `deploy/systemd/`).
+   (via `src/iai_mcp/_deploy/systemd/`).
 
 ### Crypto initialisation
 

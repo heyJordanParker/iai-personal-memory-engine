@@ -41,6 +41,7 @@ Guards (daemon group):
 from __future__ import annotations
 
 import argparse
+import importlib.resources as _res
 import json
 import logging
 import os
@@ -67,15 +68,9 @@ LOCK_PATH: Path = Path.home() / ".iai-mcp" / ".lock"
 SOCKET_PATH: Path = Path.home() / ".iai-mcp" / ".daemon.sock"
 STATE_PATH: Path = Path.home() / ".iai-mcp" / ".daemon-state.json"
 
-# Deploy artefact targets (installed as copies into the user's
-# per-user system-level dirs).
+# Deployment artefact install targets: per-user system service paths.
 LAUNCHD_TARGET: Path = Path.home() / "Library" / "LaunchAgents" / "com.iai-mcp.daemon.plist"
 SYSTEMD_TARGET: Path = Path.home() / ".config" / "systemd" / "user" / "iai-mcp-daemon.service"
-
-# Repo-relative templates shipped with the package.
-_PROJECT_ROOT: Path = Path(__file__).resolve().parent.parent.parent
-LAUNCHD_TEMPLATE: Path = _PROJECT_ROOT / "deploy" / "launchd" / "com.iai-mcp.daemon.plist"
-SYSTEMD_TEMPLATE: Path = _PROJECT_ROOT / "deploy" / "systemd" / "iai-mcp-daemon.service"
 
 DAEMON_LABEL: str = "com.iai-mcp.daemon"
 SERVICE_NAME: str = "iai-mcp-daemon.service"
@@ -137,11 +132,23 @@ def _ensure_crypto_key_present():
     return path
 
 
-def _render_launchd_plist() -> str:
-    """Substitute the literal `/usr/local/bin/python3` placeholder
-    AND `{USERNAME}` token in the template with sys.executable + actual user.
+def _launchd_template():
+    """Return the launchd plist package-data resource as a Traversable.
+
+    Callers invoke ``.read_text()`` on the returned object to obtain the raw
+    plist content. Backed by importlib.resources package data so it works from
+    both an editable install and a built wheel.
     """
-    text = LAUNCHD_TEMPLATE.read_text()
+    return _res.files("iai_mcp") / "_deploy" / "launchd" / "com.iai-mcp.daemon.plist"
+
+
+def _render_launchd_plist() -> str:
+    """Render the launchd plist template with sys.executable and the current user.
+
+    Substitutes the placeholder interpreter path with sys.executable so launchd
+    (which has no PATH) launches the correct interpreter at boot.
+    """
+    text = _launchd_template().read_text()
     username = os.environ.get("USER") or Path.home().name
     text = text.replace("/usr/local/bin/python3", sys.executable)
     text = text.replace("{USERNAME}", username)
@@ -149,11 +156,13 @@ def _render_launchd_plist() -> str:
 
 
 def _render_systemd_unit() -> str:
-    """Substitute the `/usr/bin/python3` template placeholder (systemd variant)
-    with the actual sys.executable so systemd resolves the right
-    interpreter even when the user's venv lives outside /usr.
+    """Render the systemd unit template with sys.executable.
+
+    Substitutes the placeholder interpreter path with sys.executable so systemd
+    launches the correct interpreter even when the user's Python lives outside /usr.
     """
-    text = SYSTEMD_TEMPLATE.read_text()
+    tmpl = _res.files("iai_mcp") / "_deploy" / "systemd" / "iai-mcp-daemon.service"
+    text = tmpl.read_text()
     text = text.replace("/usr/bin/python3", sys.executable)
     return text
 
@@ -1314,7 +1323,8 @@ def cmd_build_native(args: argparse.Namespace) -> int:
         )
         return 1
 
-    native_dir = _PROJECT_ROOT / "rust" / "iai_mcp_native"
+    repo_root = Path(__file__).resolve().parents[2]
+    native_dir = repo_root / "rust" / "iai_mcp_native"
     if not native_dir.exists():
         print(
             f"Rust source not found at {native_dir}.\n"
@@ -1328,7 +1338,7 @@ def cmd_build_native(args: argparse.Namespace) -> int:
         sys.executable, "-m", "maturin", "develop", "--release",
         "--manifest-path", str(native_dir / "Cargo.toml"),
     ]
-    result = subprocess.run(cmd, cwd=str(_PROJECT_ROOT))
+    result = subprocess.run(cmd, cwd=str(repo_root))
     if result.returncode != 0:
         print(
             "\nbuild-native failed (see cargo output above).\n"
@@ -1484,27 +1494,22 @@ def cmd_capture_turn_deferred(args: argparse.Namespace) -> int:
 # Capture-hooks installer (makes ambient WRITE-capture portable).
 # ---------------------------------------------------------------------------
 
-def _capture_hook_paths() -> tuple[Path, Path, Path]:
-    """Return (hook_src_in_repo, hook_dst_in_home, settings_path)."""
-    from pathlib import Path as _P
-    import iai_mcp
-    pkg_dir = _P(iai_mcp.__file__).resolve().parent
-    # repo layout: <repo>/src/iai_mcp/cli.py -> <repo>/deploy/hooks/...
-    repo_root = pkg_dir.parent.parent
-    src = repo_root / "deploy" / "hooks" / "iai-mcp-session-capture.sh"
-    dst = _P.home() / ".claude" / "hooks" / "iai-mcp-session-capture.sh"
-    settings = _P.home() / ".claude" / "settings.json"
+def _capture_hook_paths() -> tuple:
+    """Return (hook_src_traversable, hook_dst_in_home, settings_path).
+
+    hook_src is a package-data Traversable; callers must use .read_bytes()
+    to copy rather than shutil.copy2 (Traversable may be inside a zip).
+    """
+    src = _res.files("iai_mcp") / "_deploy" / "hooks" / "iai-mcp-session-capture.sh"
+    dst = Path.home() / ".claude" / "hooks" / "iai-mcp-session-capture.sh"
+    settings = Path.home() / ".claude" / "settings.json"
     return src, dst, settings
 
 
-def _turn_hook_paths() -> tuple[Path, Path]:
-    """Return (turn_hook_src_in_repo, turn_hook_dst_in_home)."""
-    from pathlib import Path as _P
-    import iai_mcp
-    pkg_dir = _P(iai_mcp.__file__).resolve().parent
-    repo_root = pkg_dir.parent.parent
-    src = repo_root / "deploy" / "hooks" / "iai-mcp-turn-capture.sh"
-    dst = _P.home() / ".claude" / "hooks" / "iai-mcp-turn-capture.sh"
+def _turn_hook_paths() -> tuple:
+    """Return (turn_hook_src_traversable, turn_hook_dst_in_home)."""
+    src = _res.files("iai_mcp") / "_deploy" / "hooks" / "iai-mcp-turn-capture.sh"
+    dst = Path.home() / ".claude" / "hooks" / "iai-mcp-turn-capture.sh"
     return src, dst
 
 
@@ -1532,22 +1537,68 @@ def _claude_desktop_config_path() -> Path | None:
     return p if p.parent.exists() else None
 
 
-def _build_iai_mcp_server_entry(repo_root: Path) -> dict:
-    """Build the mcpServers entry for iai-mcp, with absolute paths to the
-    current install's wrapper + venv python. Same shape works for both
-    Claude Code's ~/.claude.json and Claude Desktop's claude_desktop_config.json.
+def _resolve_wrapper_path() -> Path:
+    """Resolve the MCP wrapper index.js path.
+
+    Tries in order:
+    1. IAI_MCP_WRAPPER_PATH env var (dev override / emergency escape hatch)
+    2. importlib.resources package-data path (wheel install, primary production path)
+    3. mcp-wrapper/dist/ relative to the package source root (editable install fallback)
+
+    Raises FileNotFoundError with actionable instructions if none resolve.
     """
-    wrapper = repo_root / "mcp-wrapper" / "dist" / "index.js"
-    # Best-effort guess at venv python: <repo>/.venv/bin/python if present.
-    venv_py = repo_root / ".venv" / "bin" / "python"
-    iai_mcp_python = str(venv_py) if venv_py.exists() else sys.executable
-    iai_mcp_store = str(Path.home() / ".iai-mcp")
+    import iai_mcp as _pkg
+
+    # 1. Env override — wins unconditionally; fail-loud if the pointed file is absent.
+    env_val = os.environ.get("IAI_MCP_WRAPPER_PATH")
+    if env_val:
+        p = Path(env_val)
+        if p.exists():
+            return p
+        raise FileNotFoundError(
+            f"IAI_MCP_WRAPPER_PATH={env_val!r} is set but the file does not exist."
+        )
+
+    # 2. Package-data path (built wheel, post-build-hook install).
+    try:
+        pkg_p = Path(str(_res.files("iai_mcp") / "_wrapper" / "index.js"))
+        if pkg_p.exists():
+            return pkg_p
+    except (TypeError, FileNotFoundError):
+        pass
+
+    # 3. Editable-install fallback: mcp-wrapper/dist/ in the source tree.
+    src_file = Path(_pkg.__file__).resolve()
+    repo_root = src_file.parent.parent.parent  # src/iai_mcp/__init__.py -> repo root
+    editable_path = repo_root / "mcp-wrapper" / "dist" / "index.js"
+    if editable_path.exists():
+        return editable_path
+
+    raise FileNotFoundError(
+        "MCP wrapper (index.js) not found. Checked locations:\n"
+        f"  1. IAI_MCP_WRAPPER_PATH env var (not set)\n"
+        f"  2. Package data: {str(_res.files('iai_mcp') / '_wrapper' / 'index.js')}\n"
+        f"  3. Editable source: {editable_path}\n"
+        "To build: cd mcp-wrapper && npm run build\n"
+        "Or run: bash scripts/install.sh\n"
+        "For packaged installs: reinstall the wheel (it should include the wrapper)."
+    )
+
+
+def _build_iai_mcp_server_entry() -> dict:
+    """Build the mcpServers entry for iai-mcp.
+
+    Uses sys.executable for IAI_MCP_PYTHON — always the interpreter running
+    this CLI, which is the one that has iai_mcp installed. Resolves the
+    wrapper path via _resolve_wrapper_path (package-data then editable fallback).
+    """
+    wrapper = _resolve_wrapper_path()
     return {
         "command": "node",
         "args": [str(wrapper)],
         "env": {
-            "IAI_MCP_PYTHON": iai_mcp_python,
-            "IAI_MCP_STORE": iai_mcp_store,
+            "IAI_MCP_PYTHON": sys.executable,
+            "IAI_MCP_STORE": str(Path.home() / ".iai-mcp"),
             "TRANSFORMERS_VERBOSITY": "error",
             "TOKENIZERS_PARALLELISM": "false",
         },
@@ -1562,8 +1613,6 @@ def _patch_claude_desktop_config(action: str) -> str:
     untouched. Idempotent. If Desktop isn't installed, return a skip message.
     """
     import json as _json
-    import iai_mcp as _pkg
-    repo_root = Path(_pkg.__file__).resolve().parent.parent.parent
 
     cfg_path = _claude_desktop_config_path()
     if cfg_path is None:
@@ -1574,7 +1623,7 @@ def _patch_claude_desktop_config(action: str) -> str:
             return f"Claude Desktop: {cfg_path} absent — skipped"
         # install: create minimal config with just our entry.
         cfg_path.parent.mkdir(parents=True, exist_ok=True)
-        data = {"mcpServers": {"iai-mcp": _build_iai_mcp_server_entry(repo_root)}}
+        data = {"mcpServers": {"iai-mcp": _build_iai_mcp_server_entry()}}
         cfg_path.write_text(_json.dumps(data, indent=2))
         return f"Claude Desktop: created {cfg_path} with iai-mcp registered"
 
@@ -1593,7 +1642,7 @@ def _patch_claude_desktop_config(action: str) -> str:
         return f"Claude Desktop: iai-mcp not in config — no change"
 
     # install
-    new_entry = _build_iai_mcp_server_entry(repo_root)
+    new_entry = _build_iai_mcp_server_entry()
     if servers.get("iai-mcp") == new_entry:
         return f"Claude Desktop: {cfg_path} already has iai-mcp — no change"
     servers["iai-mcp"] = new_entry
@@ -1601,21 +1650,89 @@ def _patch_claude_desktop_config(action: str) -> str:
     return f"Claude Desktop: patched {cfg_path} (iai-mcp registered)"
 
 
+def _patch_claude_code_config(action: str) -> str:
+    """action: 'install' | 'uninstall'. Returns a status message for logging.
+
+    Writes mcpServers.iai-mcp into ~/.claude.json (the Claude Code CLI config).
+    Claude Code and Claude Desktop use SEPARATE config files; this function
+    owns the Claude Code side. If the MCP wrapper is not yet built, the config
+    is still written (with a best-effort wrapper path) so IAI_MCP_PYTHON is
+    correct immediately; the user will see a node error at MCP startup until
+    the wrapper is built.
+    """
+    import json as _json
+
+    cfg_path = Path.home() / ".claude.json"
+
+    if action == "uninstall":
+        if not cfg_path.exists():
+            return "Claude Code: ~/.claude.json absent — skipped"
+        try:
+            data = _json.loads(cfg_path.read_text())
+        except (OSError, ValueError) as e:
+            return f"Claude Code: ~/.claude.json unreadable ({type(e).__name__}) — skipped"
+        servers = data.get("mcpServers", {})
+        if "iai-mcp" in servers:
+            servers.pop("iai-mcp")
+            data["mcpServers"] = servers
+            cfg_path.write_text(_json.dumps(data, indent=2))
+            return "Claude Code: removed iai-mcp from ~/.claude.json"
+        return "Claude Code: iai-mcp not in ~/.claude.json — no change"
+
+    # install
+    try:
+        entry = _build_iai_mcp_server_entry()
+    except FileNotFoundError as exc:
+        # Wrapper not yet built — write partial entry so IAI_MCP_PYTHON is
+        # set correctly; user must build the wrapper before MCP starts.
+        entry = {
+            "type": "stdio",
+            "command": "node",
+            "args": ["<run: cd mcp-wrapper && npm run build>"],
+            "env": {
+                "IAI_MCP_PYTHON": sys.executable,
+                "IAI_MCP_STORE": str(Path.home() / ".iai-mcp"),
+                "TRANSFORMERS_VERBOSITY": "error",
+                "TOKENIZERS_PARALLELISM": "false",
+            },
+        }
+        print(
+            f"WARN: MCP wrapper not found — ~/.claude.json entry written with "
+            f"placeholder args. Build it first: cd mcp-wrapper && npm run build. "
+            f"({exc})",
+            file=sys.stderr,
+        )
+    else:
+        entry.setdefault("type", "stdio")
+
+    if not cfg_path.exists():
+        cfg_path.write_text(_json.dumps({"mcpServers": {"iai-mcp": entry}}, indent=2))
+        return "Claude Code: created ~/.claude.json with iai-mcp registered"
+
+    try:
+        data = _json.loads(cfg_path.read_text())
+    except (OSError, ValueError) as e:
+        return f"Claude Code: ~/.claude.json unreadable ({type(e).__name__}) — skipped"
+
+    servers = data.setdefault("mcpServers", {})
+    if servers.get("iai-mcp") == entry:
+        return "Claude Code: ~/.claude.json already has iai-mcp — no change"
+    servers["iai-mcp"] = entry
+    cfg_path.write_text(_json.dumps(data, indent=2))
+    return "Claude Code: patched ~/.claude.json (iai-mcp registered)"
+
+
 _CAPTURE_HOOK_MARKER = "iai-mcp-session-capture.sh"
 _TURN_HOOK_MARKER = "iai-mcp-turn-capture.sh"
 _SESSION_RECALL_HOOK_MARKER = "iai-mcp-session-recall.sh"
 
 
-def _session_recall_hook_paths() -> tuple[Path, Path, Path]:
-    """Return (hook_src_in_repo, hook_dst_in_home, settings_path) for the
-    SessionStart recall hook. Mirrors `_capture_hook_paths` semantics."""
-    from pathlib import Path as _P
-    import iai_mcp
-    pkg_dir = _P(iai_mcp.__file__).resolve().parent
-    repo_root = pkg_dir.parent.parent
-    src = repo_root / "deploy" / "hooks" / "iai-mcp-session-recall.sh"
-    dst = _P.home() / ".claude" / "hooks" / "iai-mcp-session-recall.sh"
-    settings = _P.home() / ".claude" / "settings.json"
+def _session_recall_hook_paths() -> tuple:
+    """Return (hook_src_traversable, hook_dst_in_home, settings_path) for the
+    SessionStart recall hook. Mirrors _capture_hook_paths semantics."""
+    src = _res.files("iai_mcp") / "_deploy" / "hooks" / "iai-mcp-session-recall.sh"
+    dst = Path.home() / ".claude" / "hooks" / "iai-mcp-session-recall.sh"
+    settings = Path.home() / ".claude" / "settings.json"
     return src, dst, settings
 
 
@@ -1633,25 +1750,25 @@ def cmd_capture_hooks_install(args: argparse.Namespace) -> int:
     """Copy both hook scripts into ~/.claude/hooks/ and register Stop +
     UserPromptSubmit entries in settings.json. Idempotent on re-run."""
     import json as _json
-    import shutil
     import stat
 
     src, dst, settings = _capture_hook_paths()
     turn_src, turn_dst = _turn_hook_paths()
 
     if not src.exists():
-        print(f"ERROR: hook template missing in repo: {src}", file=sys.stderr)
+        print(f"ERROR: hook template missing in package data: {src}", file=sys.stderr)
         return 1
     if not turn_src.exists():
-        print(f"ERROR: turn-hook template missing in repo: {turn_src}", file=sys.stderr)
+        print(f"ERROR: turn-hook template missing in package data: {turn_src}", file=sys.stderr)
         return 1
 
     dst.parent.mkdir(parents=True, exist_ok=True)
-    shutil.copy2(src, dst)
+    dst.write_bytes(src.read_bytes())
     dst.chmod(dst.stat().st_mode | stat.S_IXUSR | stat.S_IXGRP)
     print(f"installed: {dst}")
 
-    shutil.copy2(turn_src, turn_dst)
+    turn_dst.parent.mkdir(parents=True, exist_ok=True)
+    turn_dst.write_bytes(turn_src.read_bytes())
     turn_dst.chmod(turn_dst.stat().st_mode | stat.S_IXUSR | stat.S_IXGRP)
     print(f"installed: {turn_dst}")
 
@@ -1689,7 +1806,7 @@ def cmd_capture_hooks_install(args: argparse.Namespace) -> int:
     src_recall, dst_recall, _ = _session_recall_hook_paths()
     if src_recall.exists():
         dst_recall.parent.mkdir(parents=True, exist_ok=True)
-        shutil.copy2(src_recall, dst_recall)
+        dst_recall.write_bytes(src_recall.read_bytes())
         dst_recall.chmod(dst_recall.stat().st_mode | stat.S_IXUSR | stat.S_IXGRP)
         print(f"installed: {dst_recall}")
 
@@ -1709,12 +1826,14 @@ def cmd_capture_hooks_install(args: argparse.Namespace) -> int:
             })
             print(f"patched: {settings} (SessionStart hook registered)")
     else:
-        print(f"WARN: recall hook template missing in repo: {src_recall}")
+        print(f"WARN: recall hook template missing in package data: {src_recall}")
 
     settings.write_text(_json.dumps(data, indent=2))
 
-    # Claude Desktop is a separate app with its own mcpServers config —
-    # register iai-mcp there too so ambient memory works for BOTH surfaces.
+    # Register iai-mcp in both Claude Code (~/.claude.json) and Claude Desktop
+    # (claude_desktop_config.json) — they are separate apps with separate configs.
+    code_msg = _patch_claude_code_config("install")
+    print(code_msg)
     desktop_msg = _patch_claude_desktop_config("install")
     print(desktop_msg)
 
@@ -1793,7 +1912,9 @@ def cmd_capture_hooks_uninstall(args: argparse.Namespace) -> int:
         else:
             print(f"(no SessionStart entry to remove) {settings}")
 
-    # Also unregister from Claude Desktop config.
+    # Unregister from both Claude Code and Claude Desktop configs.
+    code_msg = _patch_claude_code_config("uninstall")
+    print(code_msg)
     desktop_msg = _patch_claude_desktop_config("uninstall")
     print(desktop_msg)
 

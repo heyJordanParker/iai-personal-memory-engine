@@ -693,7 +693,7 @@ def write_deferred_event(
     picks it up.
 
     Format invariants are duplicated by the per-turn shell hook at
-    deploy/hooks/iai-mcp-turn-capture.sh (system-python inline) — keep
+    src/iai_mcp/_deploy/hooks/iai-mcp-turn-capture.sh — keep
     header/event keys in sync.
     """
     deferred_dir = Path.home() / ".iai-mcp" / ".deferred-captures"

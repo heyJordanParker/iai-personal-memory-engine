@@ -22,7 +22,7 @@ import pytest
 
 
 REPO = Path(__file__).resolve().parent.parent
-HOOK = REPO / "deploy" / "hooks" / "iai-mcp-session-capture.sh"
+HOOK = REPO / "src" / "iai_mcp" / "_deploy" / "hooks" / "iai-mcp-session-capture.sh"
 
 
 pytestmark = pytest.mark.skipif(

@@ -19,7 +19,7 @@ import pytest
 pytestmark = pytest.mark.skipif(sys.platform.startswith("win"), reason="POSIX shell hook")
 
 
-HOOK_PATH = Path(__file__).resolve().parent.parent / "deploy" / "hooks" / "iai-mcp-session-recall.sh"
+HOOK_PATH = Path(__file__).resolve().parent.parent / "src" / "iai_mcp" / "_deploy" / "hooks" / "iai-mcp-session-recall.sh"
 
 
 def _make_stub_cli(dir_: Path, script: str) -> Path:

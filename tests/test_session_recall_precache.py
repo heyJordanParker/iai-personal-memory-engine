@@ -33,7 +33,7 @@ import pytest
 pytestmark = pytest.mark.skipif(sys.platform.startswith("win"), reason="POSIX shell hook")
 
 
-HOOK_PATH = Path(__file__).resolve().parent.parent / "deploy" / "hooks" / "iai-mcp-session-recall.sh"
+HOOK_PATH = Path(__file__).resolve().parent.parent / "src" / "iai_mcp" / "_deploy" / "hooks" / "iai-mcp-session-recall.sh"
 CACHE_REL = ".iai-mcp/.session-start-payload.cached.md"
 SENTINEL = "SENTINEL_LIVE_PATH_OK"
 

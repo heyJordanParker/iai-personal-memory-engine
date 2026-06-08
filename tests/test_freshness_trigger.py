@@ -12,7 +12,7 @@ test_daemon_down -- RPC returns None -> no additionalContext, wm unchanged
 test_utc_normalization -- mixed-offset timestamps compare correctly (no spurious trigger)
 test_sc3_end_to_end -- gate -> core.dispatch in-process -> drain -> compose ->
                                       inject: emitted additionalContext contains OOB record text
-test_hook_shape_regression -- deploy/hooks/iai-mcp-turn-capture.sh still contains
+test_hook_shape_regression -- src/iai_mcp/_deploy/hooks/iai-mcp-turn-capture.sh still contains
                                       per-turn capture, invokes session-refresh-if-stale,
                                       does NOT reference MemoryStore(or drain_deferred_captures
 """
@@ -446,19 +446,19 @@ def test_sc3_end_to_end(iai_home, monkeypatch):
 
 
 # ---------------------------------------------------------------------------
-# Hook-shape regression: deploy/hooks/iai-mcp-turn-capture.sh stays thin-client
+# Hook-shape regression: src/iai_mcp/_deploy/hooks/iai-mcp-turn-capture.sh stays thin-client
 # ---------------------------------------------------------------------------
 
 
 def test_hook_shape_regression():
-    """deploy/hooks/iai-mcp-turn-capture.sh must:
+    """src/iai_mcp/_deploy/hooks/iai-mcp-turn-capture.sh must:
     (a) still reference.live.jsonl (per-turn deferred capture),
     (b) contain the inlined freshness gate wired via the RPC method string
         (session_refresh_if_stale, underscore) and emit additionalContext,
     (c) NOT contain MemoryStore(or drain_deferred_captures (thin-client invariant).
     """
     # Resolve the hook from the repo root (not the installed ~/.claude/hooks copy).
-    hook_path = Path(__file__).resolve().parent.parent / "deploy" / "hooks" / "iai-mcp-turn-capture.sh"
+    hook_path = Path(__file__).resolve().parent.parent / "src" / "iai_mcp" / "_deploy" / "hooks" / "iai-mcp-turn-capture.sh"
     assert hook_path.exists(), f"Hook not found at {hook_path}"
 
     content = hook_path.read_text()

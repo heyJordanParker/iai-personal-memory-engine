@@ -35,7 +35,7 @@ from pathlib import Path
 # Extract real PY_SCRIPT from the hook file
 # ---------------------------------------------------------------------------
 
-HOOK_FILE = Path(__file__).resolve().parent.parent / "deploy" / "hooks" / "iai-mcp-turn-capture.sh"
+HOOK_FILE = Path(__file__).resolve().parent.parent / "src" / "iai_mcp" / "_deploy" / "hooks" / "iai-mcp-turn-capture.sh"
 
 
 def _extract_py_script() -> str:

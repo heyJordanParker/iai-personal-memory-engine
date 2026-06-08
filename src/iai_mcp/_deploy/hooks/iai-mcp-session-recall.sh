@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# IAI-MCP SessionStart hook — recall injection.
+# iai-mcp SessionStart hook — recall injection.
 #
 # Fires on Claude Code session start (sources: startup, resume, clear,
 # compact). Reads the stdin JSON for session_id and source, invokes the
@@ -42,8 +42,9 @@ ts=$(date -u +%Y-%m-%dT%H:%M:%SZ)
   echo "$ts session=$session_id source=$source_evt"
 } >> "$log" 2>/dev/null
 
+# Daemon-written precache for SessionStart.
 # Read the daemon-written cache whenever it is non-empty (no age cap).
-# Each branch writes a contract log marker. Falls through to the live CLI path
+# Each branch writes a log marker. Falls through to the live CLI path
 # on any miss.
 cache_path="$HOME/.iai-mcp/.session-start-payload.cached.md"
 if [[ -s "$cache_path" ]]; then
@@ -68,14 +69,17 @@ else
   echo "$ts cache-miss absent" >> "$log" 2>/dev/null
 fi
 
-# Locate the CLI. Lookup order:
-# 1. IAI_MCP_SESSION_RECALL_CLI environment variable (developer override
-# for non-standard install locations; export in your shell init).
-# 2. ~/.iai-mcp/.cli-path cache file (auto-populated below once the
-# candidates array finds a working binary).
-# 3. Generic install locations in the candidates array.
-# Only generic install paths are baked into the source; developer-specific
-# paths belong in the env var or the cache, never here.
+# Locate the `iai-mcp` CLI. Resolution order:
+#   1. IAI_MCP_SESSION_RECALL_CLI environment variable — highest priority;
+#      set in your shell init for non-standard install locations.
+#   2. ~/.iai-mcp/.cli-path cache — auto-populated below once a working
+#      binary is found.
+#   3. `command -v iai-mcp` — PATH lookup; picks up pyenv shims, pipx
+#      wrappers, and any other PATH-managed install transparently.
+#   4. Baked-in candidate list — checked when PATH has no entry; covers
+#      common install locations (pyenv shims, pipx, homebrew, user-site).
+# Only generic $HOME-relative or system paths belong here; install-specific
+# paths belong in the env var or the cache.
 cli_cache="$HOME/.iai-mcp/.cli-path"
 iai_cli=""
 if [[ -n "${IAI_MCP_SESSION_RECALL_CLI:-}" && -x "$IAI_MCP_SESSION_RECALL_CLI" ]]; then
@@ -86,8 +90,18 @@ if [[ -z "$iai_cli" && -f "$cli_cache" ]]; then
   [[ -x "$cached" ]] && iai_cli="$cached"
 fi
 if [[ -z "$iai_cli" ]]; then
+  resolved=$(command -v iai-mcp 2>/dev/null || true)
+  if [[ -n "$resolved" && -x "$resolved" ]]; then
+    iai_cli="$resolved"
+    printf '%s' "$iai_cli" > "$cli_cache" 2>/dev/null || true
+  fi
+fi
+if [[ -z "$iai_cli" ]]; then
   candidates=(
-    "$HOME/IAI-MCP/.venv/bin/iai-mcp"
+    "$HOME/.pyenv/shims/iai-mcp"
+    "$HOME/.local/bin/iai-mcp"
+    "$HOME/.local/pipx/venvs/iai-mcp/bin/iai-mcp"
+    "/opt/homebrew/bin/iai-mcp"
     "/usr/local/bin/iai-mcp"
   )
   for candidate in "${candidates[@]}"; do
@@ -104,8 +118,7 @@ if [[ -z "$iai_cli" ]]; then
 fi
 
 # Hard cap on the CLI call. Default 10s; IAI_MCP_RECALL_HOOK_TIMEOUT overrides
-# the cap (used by failsafe contract tests to cap at 2s against sleeping
-# stubs). On cap-exceed the CLI yields no stdout, not a hang.
+# the cap. On cap-exceed the CLI yields no stdout, not a hang.
 hook_timeout="${IAI_MCP_RECALL_HOOK_TIMEOUT:-10}"
 if command -v timeout >/dev/null 2>&1; then
   out=$(timeout "$hook_timeout" "$iai_cli" session-start --session-id "$session_id" 2>>"$log")

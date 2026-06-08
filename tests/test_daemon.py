@@ -25,8 +25,8 @@ import pytest
 
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
-PLIST_PATH = PROJECT_ROOT / "deploy" / "launchd" / "com.iai-mcp.daemon.plist"
-SERVICE_PATH = PROJECT_ROOT / "deploy" / "systemd" / "iai-mcp-daemon.service"
+PLIST_PATH = PROJECT_ROOT / "src" / "iai_mcp" / "_deploy" / "launchd" / "com.iai-mcp.daemon.plist"
+SERVICE_PATH = PROJECT_ROOT / "src" / "iai_mcp" / "_deploy" / "systemd" / "iai-mcp-daemon.service"
 
 
 # ---------------------------------------------------------------------------

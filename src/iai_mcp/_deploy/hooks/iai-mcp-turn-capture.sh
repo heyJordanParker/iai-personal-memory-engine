@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# IAI-MCP UserPromptSubmit hook — per-turn ambient capture.
+# iai-mcp UserPromptSubmit hook — per-turn ambient capture.
 #
 # Pure file IO: appends one JSONL event line per new transcript turn to
 # ~/.iai-mcp/.deferred-captures/{session_id}.live.jsonl. Inline system
@@ -56,14 +56,14 @@ home = Path(os.environ.get("HOME", str(Path.home())))
 # Resolve the canonical transcript for this session.
 #
 # Claude Code sometimes passes a transcript_path via hook stdin that is stale,
-# points to an empty file, or belongs to a different session entirely. The
+# points to an empty file, or belongs to a different session entirely.  The
 # stdin path is the result of whatever the host process had on hand at fire
 # time, which may be empty or wrong even when it physically exists on disk.
 #
-# Strategy: ALWAYS scan ~/.claude/projects/*/{session_id}.jsonl first. If the
+# Strategy: ALWAYS scan ~/.claude/projects/*/{session_id}.jsonl first.  If the
 # canonical file exists and is non-empty, use it — it is guaranteed to contain
-# this session only. Fall back to the stdin path only when the canonical file
-# is absent or empty (early first-fire timing race). If neither source has
+# this session only.  Fall back to the stdin path only when the canonical file
+# is absent or empty (early first-fire timing race).  If neither source has
 # content, exit cleanly — the Stop hook will capture at session end.
 #
 # This makes offset accounting safe: the offset is always relative to one
@@ -107,7 +107,7 @@ with transcript_path.open() as fh:
 total = len(lines)
 if prev > total:
     # Transcript is shorter than the stored offset — it was rotated or
-    # replaced. Preserve the existing offset and skip capture to avoid
+    # replaced.  Preserve the existing offset and skip capture to avoid
     # re-emitting old turns or clobbering a valid large offset.
     tmp = state_dir / f"{session_id}.offset.tmp"
     tmp.write_text(str(prev))
@@ -158,8 +158,8 @@ def parse_line(raw):
         return None
     if _is_noise(text):
         return None
-    # Extract transcript-native identity when present. Real Claude Code
-    # JSONL lines carry top-level "uuid" and "timestamp" fields. Test
+    # Extract transcript-native identity when present.  Real Claude Code
+    # JSONL lines carry top-level "uuid" and "timestamp" fields.  Test
     # fixtures may lack these; None is the safe fallback so capture.py
     # _idem_tag falls back to the (session, role, ts, text) key.
     src_uuid = obj.get("uuid") or None
@@ -209,24 +209,24 @@ os.replace(tmp, offset)
 #
 # Check whether new cross-session memory has arrived since the last prompt.
 # This runs AFTER the capture write and offset persist above are already
-# complete. Any exception in the gate is swallowed — the capture is always
+# complete.  Any exception in the gate is swallowed — the capture is always
 # independent of the gate outcome.
 #
 # Two trigger signals:
-# Signal A: MAX(created_at) in the Hippo SQLite file advanced past the
-# per-session watermark (another session was drained into the store).
-# Signal B: total byte-size of OTHER sessions live files grew since last look
-# (another session is still open and wrote new turns not yet drained).
+#   Signal A: MAX(created_at) in the Hippo SQLite file advanced past the
+#             per-session watermark (another session was drained into the store).
+#   Signal B: total byte-size of OTHER sessions live files grew since last look
+#             (another session is still open and wrote new turns not yet drained).
 #
 # When triggered, the gate contacts the daemon via a raw stdlib AF_UNIX socket
-# and asks for a refreshed session-start brief. On a non-empty rendered brief,
+# and asks for a refreshed session-start brief.  On a non-empty rendered brief,
 # the gate emits additionalContext JSON to stdout — the channel Claude Code reads
 # for per-prompt context injection.
 #
 # Custom-store isolation: when IAI_MCP_STORE points to a non-default location
 # and no IAI_DAEMON_SOCKET_PATH override is set, the gate skips the socket RPC
-# entirely. Contacting the default daemon socket would surface the wrong
-# store context. Explicit IAI_DAEMON_SOCKET_PATH always wins.
+# entirely.  Contacting the default daemon socket would surface the wrong
+# store context.  Explicit IAI_DAEMON_SOCKET_PATH always wins.
 #
 # DB and watermark reads are HOME-based regardless of IAI_MCP_STORE, matching
 # the behavior of the manual cmd_session_refresh_if_stale command in cli.py.
@@ -356,7 +356,7 @@ try:
                 if not sock_env and is_custom:
                     # Custom store with no explicit socket — do not contact the
                     # default daemon socket (it would surface a different store
-                    # context). Leave sidecars unchanged and skip the RPC.
+                    # context).  Leave sidecars unchanged and skip the RPC.
                     pass
                 else:
                     sock_path = sock_env or str(home / ".iai-mcp" / ".daemon.sock")

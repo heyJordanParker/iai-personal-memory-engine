@@ -4,6 +4,10 @@ __pycache__/
 *$py.class
 *.so
 .Python
+# build-generated wrapper JS (written by the wheel build hook; not committed)
+src/iai_mcp/_wrapper/
+# Rust extension compiled in-tree by maturin develop or pip wheel
+src/iai_mcp_native*.so
 build/
 dist/
 downloads/
