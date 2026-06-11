@@ -278,9 +278,71 @@ def test_doctor_total_count_22(tmp_path, monkeypatch):
     from iai_mcp.doctor import run_diagnosis
 
     results = run_diagnosis()
-    assert len(results) == 24, (
-        f"expected 24 rows; got {len(results)}: {[r.name for r in results]}"
+    assert len(results) == 25, (
+        f"expected 25 rows; got {len(results)}: {[r.name for r in results]}"
     )
+
+
+def _build_records_table(db_path: Path) -> None:
+    """Create a minimal records table for timestamp-collapse tests."""
+    conn = sqlite3.connect(str(db_path))
+    conn.execute(
+        "CREATE TABLE IF NOT EXISTS records "
+        "(id TEXT PRIMARY KEY, tier TEXT, created_at TEXT)"
+    )
+    conn.commit()
+    conn.close()
+
+
+def test_check_x_collapsed_timestamps_warns(tmp_path, monkeypatch):
+    """A store with >=5 episodic records sharing one created_at yields WARN."""
+    monkeypatch.setenv("IAI_MCP_STORE", str(tmp_path))
+    hippo = tmp_path / "hippo"
+    hippo.mkdir()
+    db_path = hippo / "brain.sqlite3"
+
+    _build_records_table(db_path)
+    collapsed_ts = "2024-01-01T00:00:00+00:00"
+    conn = sqlite3.connect(str(db_path))
+    for i in range(7):
+        conn.execute(
+            "INSERT INTO records (id, tier, created_at) VALUES (?, ?, ?)",
+            (f"r-{i}", "episodic", collapsed_ts),
+        )
+    conn.commit()
+    conn.close()
+
+    from iai_mcp.doctor import check_x_no_collapsed_timestamps
+
+    result = check_x_no_collapsed_timestamps()
+    assert result.passed is False
+    assert result.status == "WARN"
+    assert "7" in result.detail
+    assert "iai-mcp migrate --rederive-timestamps" in result.detail
+
+
+def test_check_x_collapsed_timestamps_pass(tmp_path, monkeypatch):
+    """A store with episodic records each having a distinct created_at yields PASS."""
+    monkeypatch.setenv("IAI_MCP_STORE", str(tmp_path))
+    hippo = tmp_path / "hippo"
+    hippo.mkdir()
+    db_path = hippo / "brain.sqlite3"
+
+    _build_records_table(db_path)
+    conn = sqlite3.connect(str(db_path))
+    for i in range(6):
+        conn.execute(
+            "INSERT INTO records (id, tier, created_at) VALUES (?, ?, ?)",
+            (f"r-{i}", "episodic", f"2024-01-01T00:00:{i:02d}+00:00"),
+        )
+    conn.commit()
+    conn.close()
+
+    from iai_mcp.doctor import check_x_no_collapsed_timestamps
+
+    result = check_x_no_collapsed_timestamps()
+    assert result.passed is True
+    assert result.status != "WARN"
 
 
 def test_no_lance_storage_optimized_in_identity_audit():

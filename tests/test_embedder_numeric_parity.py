@@ -37,7 +37,11 @@ def _rust_available() -> bool:
         return False
 
 
-@pytest.mark.skipif(not _rust_available(), reason="iai_mcp_native wheel not installed")
+_HF_CACHE = Path(os.environ.get("HF_HOME") or (Path.home() / ".cache" / "huggingface"))
+HAS_BGE_SMALL_CACHE = any(_HF_CACHE.rglob("*bge-small-en*")) if _HF_CACHE.exists() else False
+
+
+@pytest.mark.skipif(not _rust_available() or not HAS_BGE_SMALL_CACHE, reason="iai_mcp_native not installed or bge-small-en-v1.5 not cached")
 def test_rust_cosine_parity(baseline_texts, baseline_vectors):
     from iai_mcp.embed import Embedder
     e = Embedder()
@@ -55,7 +59,7 @@ def test_rust_cosine_parity(baseline_texts, baseline_vectors):
     )
 
 
-@pytest.mark.skipif(not _rust_available(), reason="iai_mcp_native wheel not installed")
+@pytest.mark.skipif(not _rust_available() or not HAS_BGE_SMALL_CACHE, reason="iai_mcp_native not installed or bge-small-en-v1.5 not cached")
 def test_default_backend_is_rust():
     from iai_mcp.embed import Embedder
     e = Embedder()
@@ -64,7 +68,7 @@ def test_default_backend_is_rust():
     assert len(v) == 384
 
 
-@pytest.mark.skipif(not _rust_available(), reason="iai_mcp_native wheel not installed")
+@pytest.mark.skipif(not _rust_available() or not HAS_BGE_SMALL_CACHE, reason="iai_mcp_native not installed or bge-small-en-v1.5 not cached")
 def test_backend_routing_rust():
     from iai_mcp.embed import Embedder
     e = Embedder()
@@ -73,7 +77,7 @@ def test_backend_routing_rust():
     assert len(v) == 384
 
 
-@pytest.mark.skipif(not _rust_available(), reason="iai_mcp_native wheel not installed")
+@pytest.mark.skipif(not _rust_available() or not HAS_BGE_SMALL_CACHE, reason="iai_mcp_native not installed or bge-small-en-v1.5 not cached")
 def test_tokenizer_handles_oversized_text():
     from iai_mcp.embed import Embedder
     e = Embedder()

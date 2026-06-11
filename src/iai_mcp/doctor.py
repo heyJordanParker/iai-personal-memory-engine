@@ -858,6 +858,58 @@ def check_w_no_permanent_failed() -> CheckResult:
     )
 
 
+def check_x_no_collapsed_timestamps() -> CheckResult:
+    """Warn when many episodic records share an identical created_at (time-collapsed session)."""
+    db_path = _resolve_hippo_db_path()
+    if not db_path.exists():
+        return CheckResult(
+            name="(x) no collapsed-timestamp groups",
+            passed=True,
+            detail="db absent (fresh install)",
+            status="PASS",
+        )
+    conn = None
+    try:
+        conn = sqlite3.connect(str(db_path), timeout=2.0)
+        rows = conn.execute(
+            "SELECT created_at, COUNT(*) AS n FROM records WHERE tier = 'episodic'"
+            " GROUP BY created_at HAVING n >= 5 ORDER BY n DESC LIMIT 20"
+        ).fetchall()
+    except sqlite3.Error as exc:
+        return CheckResult(
+            name="(x) no collapsed-timestamp groups",
+            passed=True,
+            detail=f"check skipped: {type(exc).__name__}: {exc}",
+            status="WARN",
+        )
+    finally:
+        if conn is not None:
+            try:
+                conn.close()
+            except Exception:
+                pass
+    if not rows:
+        return CheckResult(
+            name="(x) no collapsed-timestamp groups",
+            passed=True,
+            detail="no collapsed timestamp groups found",
+            status="PASS",
+        )
+    group_count = len(rows)
+    total_affected = sum(r[1] for r in rows)
+    worst_ts, worst_n = rows[0]
+    return CheckResult(
+        name="(x) no collapsed-timestamp groups",
+        passed=False,
+        detail=(
+            f"{group_count} group(s) with >= 5 records at one timestamp"
+            f" ({total_affected} records total; worst group: {worst_n} records at {worst_ts})"
+            " — run 'iai-mcp migrate --rederive-timestamps' to repair"
+        ),
+        status="WARN",
+    )
+
+
 def check_z_avx2_support() -> CheckResult:
     from iai_mcp.cpu_features import has_avx2
 
@@ -1397,6 +1449,7 @@ def run_diagnosis() -> list[CheckResult]:
         check_u_recall_centrality_regression(),
         check_v_native_embedder(),
         check_w_no_permanent_failed(),
+        check_x_no_collapsed_timestamps(),
         check_z_avx2_support(),
     ]
 
@@ -1473,9 +1526,11 @@ def _respawn_daemon() -> tuple[bool, str, int]:
         )
 
     try:
+        spawn_env = os.environ.copy()
+        spawn_env["IAI_DAEMON_RESPAWN_BY"] = "doctor"
         subprocess.Popen(
             [sys.executable, "-m", "iai_mcp.daemon"],
-            env=os.environ.copy(),
+            env=spawn_env,
             stdout=subprocess.DEVNULL,
             stderr=subprocess.DEVNULL,
             start_new_session=True,

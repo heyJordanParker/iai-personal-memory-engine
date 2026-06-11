@@ -39,21 +39,21 @@ def test_template_renders_to_valid_plist(tmp_path: Path) -> None:
 def test_template_has_required_keys() -> None:
     text = TEMPLATE.read_text()
     required_markers = [
-        "<key>Sockets</key>",
         "<key>RunAtLoad</key>",
-        "<false/>",
-        "<key>SockPathMode</key>",
-        "<integer>384</integer>",
+        "<true/>",
         "<key>KeepAlive</key>",
+        "<key>Crashed</key>",
+        "<key>ProcessType</key>",
+        "<key>SoftResourceLimits</key>",
         "IAI_MCP_LAUNCHD_MANAGED",
     ]
     missing = [m for m in required_markers if m not in text]
     assert not missing, f"template missing required markers: {missing}"
 
-def test_template_does_not_have_RunAtLoad_true() -> None:
+def test_template_has_RunAtLoad_true() -> None:
     text = TEMPLATE.read_text()
     match = re.search(r"<key>RunAtLoad</key>\s*<true/>", text)
-    assert match is None, (
-        "REGRESSION: template contains <key>RunAtLoad</key>...<true/> which "
-        "defeats socket activation. Use <false/> instead."
+    assert match is not None, (
+        "template must contain <key>RunAtLoad</key>...<true/> for always-on "
+        "activation (daemon starts at login and restarts on crash)"
     )

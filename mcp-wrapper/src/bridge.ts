@@ -92,12 +92,18 @@ export class PythonCoreBridge {
   ): Promise<net.Socket> {
     return new Promise((resolve, reject) => {
       const sock = net.createConnection(socketPath);
+      // Keep a pending/abandoned connect attempt from pinning the event loop
+      // (e.g. an in-flight reconnect after socket death). A live connected
+      // socket re-refs below so real RPC still holds the process open.
+      sock.unref();
       const t = setTimeout(() => {
         try { sock.destroy(); } catch {  }
         reject(new Error("connect_timeout"));
       }, timeoutMs);
+      t.unref();
       sock.once("connect", () => {
         clearTimeout(t);
+        sock.ref();
         resolve(sock);
       });
       sock.once("error", (e) => {
@@ -226,6 +232,10 @@ export class PythonCoreBridge {
   }
 
   disconnect(): void {
+    // Suppress the reconnect that destroying the socket below would otherwise
+    // trigger via the "close" handler — an explicit teardown must not spawn a
+    // fresh connect attempt.
+    this.reconnectAttempted = true;
     if (this.sock) {
       try { this.sock.end(); } catch {  }
       try { this.sock.destroy(); } catch {  }

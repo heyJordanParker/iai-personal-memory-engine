@@ -55,10 +55,10 @@ def test_get_does_not_call_unfiltered_to_pandas(tmp_path, monkeypatch):
     _seed(store, n=20)
     target = _seed(store, n=1)[0]
 
-    pytest.importorskip("lancedb")
-    import lancedb.table as _lt
+    from iai_mcp.hippo import HippoTable
+    from iai_mcp.store import RECORDS_TABLE
 
-    target_cls = _lt.LanceTable
+    target_cls = HippoTable
     base_to_pandas = target_cls.to_pandas
     unfiltered_calls: list[dict] = []
 
@@ -73,9 +73,20 @@ def test_get_does_not_call_unfiltered_to_pandas(tmp_path, monkeypatch):
     assert got is not None
     assert got.id == target
     assert not unfiltered_calls, (
-        "store.get called Table.to_pandas() without a filter — "
+        "store.get called HippoTable.to_pandas() without a filter — "
         "full-scan path still in use. Expected filter-pushdown via "
-        "tbl.search(...).where(...) or tbl.to_lance().to_table(filter=...)."
+        "tbl.search(...).where(...)."
+    )
+
+    # Positive control: prove the patch fires on the class store.get queries
+    # through. A deliberate full-table to_pandas MUST be recorded, so the
+    # primary assertion above cannot pass as a silent no-op against a class the
+    # query path never touches.
+    store.db.open_table(RECORDS_TABLE).to_pandas()
+    assert unfiltered_calls, (
+        "perf-fence mechanism check failed: a direct HippoTable.to_pandas() was "
+        "not intercepted — the monkeypatch is not wired to the class store.get "
+        "queries through"
     )
 
 

@@ -13,6 +13,7 @@ import pytest
 
 sys.path.insert(0, str(Path(__file__).parent))
 from test_store import _make
+from tests.conftest_short_socket import short_socket  # noqa: F401  — exposes fixture
 
 
 FAIL_FAST_CEILING_S = 3.5
@@ -146,8 +147,8 @@ def _reset_and_stub_construct(monkeypatch):
     _sr._WARM_LOCAL_STORE = None
 
 
-def test_slow_daemon_degrades_in_under_3s(monkeypatch, tmp_path):
-    sock_path = str(tmp_path / "stall.sock")
+def test_slow_daemon_degrades_in_under_3s(monkeypatch, tmp_path, short_socket):
+    sock_path = str(short_socket)
     store_root = _make_hermetic_store(tmp_path)
 
     ready = _unix_socket_server_stall(sock_path, stall_seconds=60.0)
@@ -182,8 +183,8 @@ def test_slow_daemon_degrades_in_under_3s(monkeypatch, tmp_path):
     assert returncode == 0, f"cmd_recall returned non-zero: {returncode}"
 
 
-def test_fast_daemon_uses_daemon_hits_no_degrade(monkeypatch, tmp_path):
-    sock_path = str(tmp_path / "fast.sock")
+def test_fast_daemon_uses_daemon_hits_no_degrade(monkeypatch, tmp_path, short_socket):
+    sock_path = str(short_socket)
     store_root = _make_hermetic_store(tmp_path)
 
     daemon_hits = [

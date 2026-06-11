@@ -63,7 +63,7 @@ export function buildServer(
   const server = new Server(
     {
       name: "iai-mcp",
-      version: "1.0.0",
+      version: "0.1.0",
     },
     {
       capabilities: { tools: {} },
@@ -74,9 +74,15 @@ export function buildServer(
     },
   );
 
-  server.setRequestHandler(ListToolsRequestSchema, async () => ({
-    tools: listHotTools(),
-  }));
+  server.setRequestHandler(ListToolsRequestSchema, async () => {
+    const t0 = Date.now();
+    const tools = listHotTools();
+    const listHandlerElapsedMs = Date.now() - t0;
+    return {
+      tools,
+      _meta: { listHandlerElapsedMs },
+    };
+  });
 
   server.setRequestHandler(CallToolRequestSchema, async (req) => {
     const name = req.params.name as ToolName;
@@ -121,11 +127,13 @@ async function main(): Promise<void> {
   const { server, bridge: b } = buildServer();
 
   const lifecycle = new WrapperLifecycle();
-  await lifecycle.ensureDaemonAlive();
-  await lifecycle.registerHeartbeat();
 
   const transport = new StdioServerTransport();
   await server.connect(transport);
+
+  void lifecycle.ensureDaemonAlive().catch(() => null);
+
+  void lifecycle.registerHeartbeat().catch(() => null);
 
   void b
     .start()

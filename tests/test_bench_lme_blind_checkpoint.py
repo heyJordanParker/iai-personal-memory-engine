@@ -5,6 +5,8 @@ import os
 
 import pytest
 
+pytest.importorskip("huggingface_hub", reason="LongMemEval harness needs the hub client")
+
 
 class _StubLMESession:
 

@@ -271,7 +271,7 @@ def test_recent_pending_markers_large_pending_backlog_bounded(store):
     from iai_mcp.store import MemoryStore
     pending_sql = MemoryStore._PENDING_READ_SQL
     assert "LIMIT ?" in pending_sql, (
-        f"_PENDING_READ_SQL must contain 'LIMIT ?' for CC2-H4 bounding: {pending_sql!r}"
+        f"_PENDING_READ_SQL must contain 'LIMIT ?' to bound the pending read: {pending_sql!r}"
     )
 
     n = 10

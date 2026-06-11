@@ -287,7 +287,7 @@ def test_boot_with_pending_row_no_crash_no_churn(hermetic_store: Path) -> None:
         non_pending_count = non_pending_count_row[0]
 
         assert active_label_count == non_pending_count, (
-            f"C2-H2 churn bug: active_label_count={active_label_count} != "
+            f"label churn bug: active_label_count={active_label_count} != "
             f"non_pending_count={non_pending_count}; pending rows must be excluded "
             "from the ANN label map to prevent perpetual rebuild"
         )
@@ -296,7 +296,7 @@ def test_boot_with_pending_row_no_crash_no_churn(hermetic_store: Path) -> None:
         turns = read_recent_user_turns_direct(hermetic_store, n=10)
         surfaces = [t.literal_surface for t in turns]
         assert any("pending row text" in s for s in surfaces), (
-            "C2-H2: pending row must be recency-recallable immediately (embedding-independent)"
+            "pending row must be recency-recallable immediately (embedding-independent)"
         )
 
         from iai_mcp.direct_write import simulate_daemon_reembed  # type: ignore[import]
@@ -356,7 +356,7 @@ def test_pre_migration_store_opens_and_reconciles(hermetic_store: Path) -> None:
         with hippo._conn_lock:
             cols_after = {row[1] for row in hippo._conn.execute("PRAGMA table_info(records)")}
         assert "embedding_pending" in cols_after, (
-            "C3-H4: _reconcile_columns must add embedding_pending column to pre-migration store"
+            "_reconcile_columns must add embedding_pending column to pre-migration store"
         )
 
         hippo.close()

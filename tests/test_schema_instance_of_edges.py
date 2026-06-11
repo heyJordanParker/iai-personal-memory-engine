@@ -88,7 +88,6 @@ def test_schema_instance_of_edge_never_decays(tmp_path):
     )
     persist_schema(store, cand)
 
-    import lancedb
     edges_tbl = store.db.open_table(EDGES_TABLE)
     from datetime import timedelta
     ancient = datetime.now(timezone.utc) - timedelta(days=500)

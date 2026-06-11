@@ -1,10 +1,10 @@
 #!/usr/bin/env bash
-# iai-mcp Stop hook — ambient WRITE-side capture.
+# IAI-MCP Stop hook — ambient WRITE-side capture.
 #
 # Fires when a Claude Code session ends. Reads the session's JSONL transcript,
 # batch-captures user + assistant turns into the iai-mcp episodic tier through
-# `iai-mcp capture-transcript --no-spawn`. NEVER spawns a daemon.
-# If the daemon is unreachable, the call defers events to
+# `iai-mcp capture-transcript --no-spawn`. Never spawns a daemon — if the
+# daemon is unreachable the call defers events to
 # ~/.iai-mcp/.deferred-captures/ for the daemon to drain on next socket
 # activation.
 #
@@ -143,17 +143,17 @@ fi
 if command -v timeout >/dev/null 2>&1; then
   result=$(timeout 30 "$iai_cli" capture-transcript --no-spawn \
     --session-id "$session_id" \
-    --max-turns 200 \
+    --max-turns 100000 \
     "$transcript_path" 2>&1)
 elif command -v gtimeout >/dev/null 2>&1; then
   result=$(gtimeout 30 "$iai_cli" capture-transcript --no-spawn \
     --session-id "$session_id" \
-    --max-turns 200 \
+    --max-turns 100000 \
     "$transcript_path" 2>&1)
 else
   result=$("$iai_cli" capture-transcript --no-spawn \
     --session-id "$session_id" \
-    --max-turns 200 \
+    --max-turns 100000 \
     "$transcript_path" 2>&1)
 fi
 rc=$?

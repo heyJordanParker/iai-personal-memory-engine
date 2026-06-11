@@ -488,12 +488,12 @@ def test_gate_a_pending_heavy_cc2_h4(tmp_path, monkeypatch):
                 continue
         latency_samples.append(elapsed_ms)
 
-    assert not scan_fired, f"Gate A CC2-H4 FAIL: scan fired with pending backlog: {scan_fired}"
+    assert not scan_fired, f"Gate A FAIL: scan fired with pending backlog: {scan_fired}"
     assert latency_samples, "No successful trials in pending-heavy cell"
     p95_ms = _p95(latency_samples)
-    print(f"\n  Gate A CC2-H4 pending-heavy p95: {p95_ms:.1f}ms")
+    print(f"\n  Gate A pending-heavy p95: {p95_ms:.1f}ms")
     assert p95_ms <= LATENCY_CEILING_MS, (
-        f"Gate A CC2-H4 FAIL: pending-heavy p95={p95_ms:.1f}ms > {LATENCY_CEILING_MS}ms"
+        f"Gate A FAIL: pending-heavy p95={p95_ms:.1f}ms > {LATENCY_CEILING_MS}ms"
     )
     assert decrypt_counts["max_returned"] < pending_count, (
         f"recent_pending_markers returned {decrypt_counts['max_returned']} "
@@ -521,7 +521,7 @@ def test_gate_a_cold_no_prime_cc2_h2(tmp_path, monkeypatch):
     _reset_auto_depth()
     resp_cold = _dispatch_recall(store, _make_recall_params(LEXICAL_GENERIC_CUE))
     assert resp_cold.get("_source") == "cold-structural-degrade", (
-        f"Gate A CC2-H2 FAIL: truly-cold recall did not return cold-structural-degrade; "
+        f"Gate A FAIL: truly-cold recall did not return cold-structural-degrade; "
         f"_source={resp_cold.get('_source')!r}. "
         "A fresh cold daemon must NEVER silently drop the hub-sensitive gold "
         "by serving an unlabelled empty rich-club."
@@ -539,7 +539,7 @@ def test_gate_a_cold_no_prime_cc2_h2(tmp_path, monkeypatch):
     hub_gold_str = "00000000-0000-0000-0000-000000000001"
     hit_ids = {h["record_id"] for h in resp_warm.get("hits", [])}
     assert hub_gold_str in hit_ids, (
-        f"Gate A CC2-H2 FAIL: hub-sensitive gold not in hits after preload; "
+        f"Gate A FAIL: hub-sensitive gold not in hits after preload; "
         f"hit_ids={hit_ids}"
     )
 

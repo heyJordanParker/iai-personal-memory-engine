@@ -163,16 +163,7 @@ def test_cache_file_mode_is_owner_only(tmp_path, monkeypatch):
     )
 
 def test_precache_does_not_compress_payload(tmp_path, monkeypatch):
-    from iai_mcp import compress as compress_mod
     from iai_mcp import daemon as daemon_mod
-
-    calls = {"n": 0}
-
-    def _spy(hits_text, store=None):
-        calls["n"] += 1
-        return hits_text
-
-    monkeypatch.setattr(compress_mod, "compress_recall_payload", _spy)
 
     store = _fresh_store(tmp_path, monkeypatch)
 
@@ -209,11 +200,6 @@ def test_precache_does_not_compress_payload(tmp_path, monkeypatch):
     cache_path = tmp_path / "c.md"
     daemon_mod._write_session_start_cache(store, cache_path=cache_path)
 
-    assert calls["n"] == 0, (
-        "session-start precache path must NOT invoke compress_recall_payload — "
-        "doing so routes readable continuity markdown through LLMLingua-2, which "
-        "drops tokens mid-word and produces unreadable token-soup."
-    )
     assert cache_path.exists(), "cache file was not created by the precache writer"
     assert cache_path.read_text(encoding="utf-8"), "cache file is empty after precache write"
 

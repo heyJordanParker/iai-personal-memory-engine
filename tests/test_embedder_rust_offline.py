@@ -47,6 +47,11 @@ def test_no_metal_symbols():
         if re.search(r"metal|MTL", line, flags=re.IGNORECASE)
         and "dummy_metal_backend" not in line
         and "CustomOp" not in line
+        # candle Device::is_metal is an API method (returns whether device is Metal),
+        # not a backend symbol — present in any candle build regardless of the
+        # (disabled) metal feature; the real Metal-linkage guard is
+        # test_no_metal_framework_linked (otool Metal.framework check)
+        and "is_metal" not in line
     ]
     assert not offenders, (
         "Metal symbols leaked into Rust embedder binary:\n"

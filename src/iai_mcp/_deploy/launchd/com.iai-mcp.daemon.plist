@@ -17,12 +17,13 @@
     <true/>
 
     <!--
-      KeepAlive policy uses ONLY `Crashed=true`. With this policy, launchd
-      respawns ONLY on a non-zero exit. The lifecycle state machine exits 0
-      gracefully on hibernation; an MCP wrapper kickstart is the sole wake
-      mechanism in steady state. `SuccessfulExit=false` is intentionally
-      omitted — with a uniform exit code of 0 for graceful shutdown it would
-      put the daemon in a respawn loop.
+      KeepAlive policy uses ONLY `Crashed=true`. With this policy,
+      launchd respawns ONLY on a non-zero exit (the lifecycle state
+      machine exits 0 gracefully on Hibernation; an MCP wrapper
+      kickstart is the sole wake mechanism in steady state).
+      `SuccessfulExit=false` is intentionally absent: the exit code
+      is uniformly 0 for graceful shutdown, so that key would cause
+      a respawn loop.
     -->
     <key>KeepAlive</key>
     <dict>
@@ -58,7 +59,7 @@
     <string>/Users/{USERNAME}</string>
 
     <!--
-      Lifecycle cadence + sleep quarantine knobs:
+      Active lifecycle + sleep-quarantine env vars:
         - LIFECYCLE_DROWSY_AFTER_SEC (default 300 == 5 min)
         - LIFECYCLE_SLEEP_HEARTBEAT_IDLE_SEC (default 1800 == 30 min)
         - LIFECYCLE_HIBERNATE_AFTER_SEC (default 7200 == 2 h)
@@ -85,11 +86,10 @@
         <!--
           Liveness + memory self-watchdog knobs (the auto-recovery watchdog;
           distinct from the observation-only CPU watchdog). The RSS hard cap +
-          contributor floor are the measured-peak-derived safe bounds: the cap
-          sits well above the legitimate consolidation peak (~593 MB) so it
-          never re-creates a below-peak kill trap, and the floor clears that
-          peak yet stays strictly below the cap so a kill-on-pressure only
-          fires when the daemon is itself a significant RAM contributor.
+          contributor floor are set well above the legitimate consolidation peak
+          so the cap never re-creates a below-peak kill trap, and the floor
+          stays strictly below the cap so a kill-on-pressure only fires when
+          the daemon is itself a significant RAM contributor.
         -->
         <key>IAI_MCP_WATCHDOG_LIVENESS_POLL_SEC</key>
         <string>30.0</string>

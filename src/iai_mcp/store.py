@@ -193,9 +193,16 @@ class MemoryStore:
         self._user_id: str = user_id
         self._crypto_key_wrapper: CryptoKey = CryptoKey(user_id=user_id, store_root=self.root)
         self._crypto_key: bytes | None = None
+        import weakref
+        _weak_key = weakref.WeakMethod(self._key)
+        def _key_via_weakref() -> bytes:
+            fn = _weak_key()
+            if fn is None:
+                raise RuntimeError("MemoryStore already collected")
+            return fn()
         self.db: HippoDB = HippoDB(
             self.root,
-            crypto_key_provider=self._key,
+            crypto_key_provider=_key_via_weakref,
             access_mode=access_mode,
             read_only=read_only,
         )

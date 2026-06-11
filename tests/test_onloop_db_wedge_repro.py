@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import asyncio
-import tempfile
+import shutil
 import threading
 import time
 from pathlib import Path
@@ -9,18 +9,18 @@ from uuid import uuid4
 
 import numpy as np
 
+from tests.conftest_short_socket import short_socket_path as _short_socket_path_base
+
 from iai_mcp.community import CommunityAssignment
 from iai_mcp.daemon import WATCHDOG_PROBE_TIMEOUT_SEC, _probe_status_roundtrip
 from iai_mcp.socket_server import SocketServer
 from iai_mcp.store import MemoryStore
 from iai_mcp.types import MemoryRecord
 
-
 _N_SEED = 80
 _PROBE_READ_TIMEOUT = 1.0
 _HOLD_SEC = 3.0
 _SERVED_RTT_CEIL = 1.0
-
 
 def _make_representative_record(vec, community_id, centrality: float) -> MemoryRecord:
     import datetime
@@ -54,7 +54,6 @@ def _make_representative_record(vec, community_id, centrality: float) -> MemoryR
         profile_modulation_gain={"empathy_gain": 0.5, "detail_gain": 0.7},
     )
 
-
 def _seed_store(store: MemoryStore, n: int):
     dim = store._embed_dim
     cid = uuid4()
@@ -72,7 +71,6 @@ def _seed_store(store: MemoryStore, n: int):
         mid_regions={cid: ids},
     )
     return ids, assignment
-
 
 class _ThreadedProbe:
 
@@ -115,14 +113,12 @@ class _ThreadedProbe:
     def report(self):
         return self._worst, list(self._samples)
 
-
 def _hold_conn_lock(store: MemoryStore, hold_sec: float,
                     started: threading.Event, done: threading.Event) -> None:
     with store.db._conn_lock:
         started.set()
         time.sleep(hold_sec)
     done.set()
-
 
 def _measured_get(store: MemoryStore, rid) -> float:
     t0 = time.monotonic()
@@ -132,11 +128,8 @@ def _measured_get(store: MemoryStore, rid) -> float:
         pass
     return time.monotonic() - t0
 
-
 def _short_socket_path() -> Path:
-    d = Path(tempfile.mkdtemp(prefix="iai-wedge-"))
-    return d / "d.sock"
-
+    return _short_socket_path_base(prefix="iai-wedge-")
 
 def _build_state() -> dict:
     return {
@@ -148,7 +141,6 @@ def _build_state() -> dict:
         "scheduler_paused": False,
     }
 
-
 def _assert_hermetic(store: MemoryStore, tmp_path: Path) -> None:
     root = Path(store.root).resolve()
     assert str(root).startswith(str(tmp_path.resolve())), (
@@ -159,7 +151,6 @@ def _assert_hermetic(store: MemoryStore, tmp_path: Path) -> None:
         f"store root {root} resolved under the real ~/.iai-mcp"
     )
 
-
 async def _serve(store: MemoryStore, sock_path: Path):
     server = SocketServer(store, state=_build_state())
     serve_task = asyncio.create_task(server.serve(socket_path=sock_path))
@@ -168,7 +159,6 @@ async def _serve(store: MemoryStore, sock_path: Path):
             break
         await asyncio.sleep(0.02)
     return server, serve_task
-
 
 async def _teardown_server(server: SocketServer, serve_task) -> None:
     server.shutdown_event.set()
@@ -180,7 +170,6 @@ async def _teardown_server(server: SocketServer, serve_task) -> None:
             await serve_task
         except (asyncio.CancelledError, Exception):  # noqa: BLE001
             pass
-
 
 def test_fixture_smoke(tmp_path):
     store_root = tmp_path / ".iai-mcp"
@@ -215,14 +204,13 @@ def test_fixture_smoke(tmp_path):
         asyncio.run(_body())
     finally:
         store.close()
-
+        shutil.rmtree(sock_path.parent, ignore_errors=True)
 
 def _served_fraction(samples: list[float], ceil: float) -> float:
     if not samples:
         return 0.0
     served = sum(1 for s in samples if s != float("inf") and s <= ceil)
     return served / len(samples)
-
 
 def test_on_loop_store_read_under_held_lock_wedges_probe(tmp_path):
     store_root = tmp_path / ".iai-mcp"
@@ -275,7 +263,7 @@ def test_on_loop_store_read_under_held_lock_wedges_probe(tmp_path):
         asyncio.run(_body())
     finally:
         store.close()
-
+        shutil.rmtree(sock_path.parent, ignore_errors=True)
 
 def test_off_loop_store_read_under_held_lock_keeps_probe_served(tmp_path):
     store_root = tmp_path / ".iai-mcp"
@@ -351,3 +339,4 @@ def test_off_loop_store_read_under_held_lock_keeps_probe_served(tmp_path):
         asyncio.run(_body())
     finally:
         store.close()
+        shutil.rmtree(sock_path.parent, ignore_errors=True)

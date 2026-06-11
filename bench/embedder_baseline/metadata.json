@@ -1,0 +1,53 @@
+{
+  "purpose": "Numeric-parity acceptance gate for the Rust forward-pass replacement.",
+  "embedder": {
+    "model_key": "bge-small-en-v1.5",
+    "model_hf_id": "BAAI/bge-small-en-v1.5",
+    "model_revision_sha": "5c38ec7c405ec4b44b94cc5a9bb96e735b38267a",
+    "output_dim": 384,
+    "output_dtype": "float32",
+    "l2_normalized": true,
+    "call_api": "Embedder.embed(text) -- per-record, not batch"
+  },
+  "text_mix": {
+    "n_total": 100,
+    "n_lme_turns": 60,
+    "n_edge_cases": 20,
+    "n_narrative": 20,
+    "lme_source": "xiaowu0162/longmemeval-cleaned",
+    "lme_split": "S",
+    "lme_revision_sha": "98d7416c24c778c2fee6e6f3006e7a073259d48f",
+    "sampling_seed": 42,
+    "edge_cases_include": [
+      "short (1-5 chars)",
+      "emoji (U+1F600)",
+      "URL / email",
+      "HTML / JSON / Python-code-like",
+      "punctuation-heavy",
+      "whitespace patterns (leading/trailing/tab)",
+      "over-512-BPE-token truncation triggers (locks model truncation behavior)"
+    ],
+    "edge_cases_exclude": [
+      "empty string (production pipeline gates min_length > 0)"
+    ]
+  },
+  "determinism": {
+    "vectors_sha256": "31cc9bb0643835b872dbd21e0553b898e3de79cc28aebcf8c27814363ec5432b",
+    "vectors_sha256_subject": "SHA256 of the full vectors.npy file bytes (magic + NPY header + raw float32 data). NOT the SHA of vectors.tobytes() in numpy — those differ by ~80 bytes of NPY header.",
+    "rerun_invariance": "Re-running this script with the same seed and the same model revision MUST reproduce the same vectors_sha256."
+  },
+  "environment": {
+    "generated_at_utc": "2026-05-26T20:03:04.131239+00:00",
+    "python_version": "3.12.13",
+    "platform": "macOS-26.3.1-arm64-arm-64bit",
+    "torch_version": "2.12.0",
+    "sentence_transformers_version": "5.5.1",
+    "transformers_version": "5.9.0",
+    "numpy_version": "2.2.6"
+  },
+  "acceptance_gate_for_rust_replacement": {
+    "per_text_metric": "cosine similarity",
+    "per_text_threshold": 0.9999,
+    "aggregate_recall_at_10_tolerance": "+/- 0.005 vs PyTorch baseline on LongMemEval-S"
+  }
+}

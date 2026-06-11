@@ -10,6 +10,7 @@ import time
 import pytest
 
 from iai_mcp import daemon
+from tests.conftest_short_socket import short_socket  # noqa: F401  — exposes fixture
 
 HARD_CAP = 2_684_354_560
 FLOOR = 1_610_612_736
@@ -464,8 +465,8 @@ def test_probe_returns_false_when_no_socket(tmp_path):
     assert asyncio.run(daemon._probe_status_roundtrip(sock_path, 0.2)) is False
 
 
-def test_probe_returns_false_on_connect_but_no_reply(tmp_path):
-    sock_path = str(tmp_path / "silent.sock")
+def test_probe_returns_false_on_connect_but_no_reply(tmp_path, short_socket):
+    sock_path = str(short_socket)
     srv = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
     srv.bind(sock_path)
     srv.listen(1)
@@ -492,8 +493,8 @@ def test_probe_returns_false_on_connect_but_no_reply(tmp_path):
         srv.close()
 
 
-def test_probe_returns_true_on_full_roundtrip(tmp_path):
-    sock_path = str(tmp_path / "healthy.sock")
+def test_probe_returns_true_on_full_roundtrip(tmp_path, short_socket):
+    sock_path = str(short_socket)
     srv = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
     srv.bind(sock_path)
     srv.listen(1)

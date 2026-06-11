@@ -12,8 +12,6 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 _SRC_PATH = str(Path(__file__).resolve().parent.parent / "src")
-if _SRC_PATH not in sys.path:
-    sys.path.insert(0, _SRC_PATH)
 
 REPO = Path(__file__).resolve().parent.parent
 

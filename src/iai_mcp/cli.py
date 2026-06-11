@@ -1534,6 +1534,18 @@ def cmd_migrate(args: argparse.Namespace) -> int:
         target = embedder_for_store(store)
         return migrate._resume(store.db, store, target)
 
+    if bool(getattr(args, "rederive_timestamps", False)):
+        from iai_mcp.migrate import migrate_rederive_collapsed_timestamps
+        dry_run = bool(getattr(args, "dry_run", False))
+        result = migrate_rederive_collapsed_timestamps(store, dry_run=dry_run)
+        prefix = "[dry-run] would update" if dry_run else "updated"
+        print(
+            f"{prefix} {result['records_updated']} records; "
+            f"skipped_no_transcript={result['skipped_no_transcript']} "
+            f"skipped_no_match={result['skipped_no_match']}"
+        )
+        return 0
+
     from_v = int(getattr(args, "from_", 1))
     to_v = int(getattr(args, "to", 2))
     dry_run = bool(getattr(args, "dry_run", False))
@@ -2867,6 +2879,15 @@ def _build_parser() -> argparse.ArgumentParser:
         help=(
             "Roll back a partial reembed migration: drop records_v_new and "
             "(if needed) restore records from records_old_<ts>."
+        ),
+    )
+    m.add_argument(
+        "--rederive-timestamps",
+        action="store_true",
+        help=(
+            "Re-derive collapsed created_at timestamps from on-disk transcripts. "
+            "One-time operation; idempotent. Records with no recoverable transcript "
+            "are left unchanged."
         ),
     )
     m.set_defaults(func=cmd_migrate)

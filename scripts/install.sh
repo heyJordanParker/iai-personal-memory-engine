@@ -131,11 +131,9 @@ fi
 # ---------------------------------------------------------------------------
 # 6. LaunchAgent registration (— socket-activated singleton)
 #
-# Section 6 — socket-activated LaunchAgent. REPLACES the eager
-# RunAtLoad=true plist that `iai-mcp daemon install` writes.
-# The two flows compete for ~/Library/LaunchAgents/com.iai-mcp.daemon.plist;
-# whichever ran most recently wins. install.sh always wins because
-# it overwrites + reloads on every invocation (idempotent by design).
+# Section 6 — always-on LaunchAgent (RunAtLoad=true, KeepAlive on crash).
+# Renders the plist template, registers it with launchctl, and starts the
+# daemon immediately. Idempotent: overwrites + reloads on every invocation.
 # ---------------------------------------------------------------------------
 step "LaunchAgent registration"
 if [[ "$(uname)" != "Darwin" ]]; then
@@ -169,7 +167,7 @@ else
         warn "launchctl load reported non-zero — checking registration anyway"
     fi
     if launchctl list | grep -q "com.iai-mcp.daemon"; then
-        ok "LaunchAgent registered (first MCP call will socket-activate the daemon)"
+        ok "LaunchAgent registered (daemon starts automatically at login)"
     else
         die "LaunchAgent NOT registered after launchctl load — investigate ${HOME}/.iai-mcp/logs/launchd-stderr.log"
     fi

@@ -7,6 +7,8 @@ from uuid import uuid4
 
 import pytest
 
+pytest.importorskip("huggingface_hub", reason="LongMemEval harness needs the hub client")
+
 
 _HF_CACHE = Path(
     os.environ.get("HF_HOME") or (Path.home() / ".cache" / "huggingface")

@@ -395,7 +395,7 @@ def capture_transcript(
     transcript_path: Path | str,
     *,
     session_id: str = "-",
-    max_turns: int = 200,
+    max_turns: int = 100_000,
 ) -> dict[str, Any]:
     path = Path(transcript_path).expanduser()
     if not path.exists():
@@ -627,7 +627,7 @@ def write_deferred_captures(
     transcript_path: Path | str,
     *,
     cwd: str | None = None,
-    max_turns: int = 200,
+    max_turns: int = 100_000,
 ) -> Path:
     deferred_dir = Path.home() / ".iai-mcp" / ".deferred-captures"
     deferred_dir.mkdir(parents=True, exist_ok=True)

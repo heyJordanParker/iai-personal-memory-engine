@@ -50,11 +50,6 @@ dev = [
   # transitive dep of the old embedder stack; now declared directly).
   "scikit-learn>=1.3",
 ]
-# LLMLingua-2 compression on L2 community summaries.
-# Opt-in because the xlm-roberta-large model weights are ~2.3 GB; without
-# this extra the compress_llmlingua2 path transparently falls back to
-# passthrough (logged as llm_health warning, no functional break).
-compress = ["llmlingua>=0.2.2", "accelerate>=1.0.0"]
 # One-time migration from legacy LanceDB store to Hippo (SQLite + hnswlib).
 # Install with: pip install iai-mcp[migration]
 # Then run: python scripts/migrate_lance_to_hippo.py

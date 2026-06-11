@@ -1,15 +1,29 @@
 from __future__ import annotations
 
 import json
+import os
 import subprocess
 import sys
 from pathlib import Path
+
+import pytest
+
+pytest.importorskip("huggingface_hub", reason="LongMemEval harness needs the hub client")
 
 REPO = Path(__file__).resolve().parent.parent
 
 PINNED_QID_FOR_SMOKE = "e47becba"
 
 FIXTURES = REPO / "tests" / "fixtures"
+
+_HF_CACHE = Path(os.environ.get("HF_HOME") or (Path.home() / ".cache" / "huggingface"))
+HAS_LONGMEMEVAL_CACHE = any(_HF_CACHE.rglob("longmemeval_s")) if _HF_CACHE.exists() else False
+HAS_BGE_SMALL_CACHE = any(_HF_CACHE.rglob("*bge-small-en*")) if _HF_CACHE.exists() else False
+
+pytestmark = pytest.mark.skipif(
+    not (HAS_LONGMEMEVAL_CACHE and HAS_BGE_SMALL_CACHE),
+    reason="LongMemEval-S dataset or bge-small-en-v1.5 model not cached",
+)
 
 
 def _run_harness(embedder: str, qid_filter: str = PINNED_QID_FOR_SMOKE) -> dict:

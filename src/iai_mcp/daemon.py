@@ -604,6 +604,9 @@ WATCHDOG_PROBE_TIMEOUT_SEC: float = float(
 WATCHDOG_FAILURE_DEBOUNCE_N: int = int(
     os.environ.get("IAI_MCP_WATCHDOG_FAILURE_DEBOUNCE_N", "3"),
 )
+# Watchdog ceiling (2.5 GiB). A full sleep/consolidation cycle adds only ~0.25 GiB
+# over a ~0.6 GiB warm resident set, so this cap catches a runaway leak without
+# ever tripping on a normal consolidation. Operator-overridable via the env var.
 WATCHDOG_RSS_HARD_CAP_BYTES: int = int(
     os.environ.get("IAI_MCP_WATCHDOG_RSS_HARD_CAP_BYTES", "2684354560"),
 )
@@ -1361,6 +1364,17 @@ async def main() -> int:
                     )
                 except (OSError, ValueError, TypeError):
                     pass
+
+    _respawn_by = os.environ.pop("IAI_DAEMON_RESPAWN_BY", None)
+    if _respawn_by:
+        try:
+            write_event(
+                store,
+                "doctor_action",
+                {"action": "daemon_respawned_by_doctor", "respawned_by": _respawn_by},
+            )
+        except Exception:  # noqa: BLE001 -- audit write must not block boot
+            log.debug("failed to write respawn audit event")
 
     _load_erasure_config()
     _load_patsep_config()

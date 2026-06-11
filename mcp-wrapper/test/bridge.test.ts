@@ -227,20 +227,31 @@ describe("PythonCoreBridge: handleSocketDeath", () => {
 
     const bridge = makeBridge(socketPath);
     bridges.push(bridge);
-    await bridge.start();
+    try {
+      await bridge.start();
 
-    const pending = bridge.call("hanging_method");
-    await sleep(50);
+      const pending = bridge.call("hanging_method");
+      // Attach the rejection expectation BEFORE the socket dies below, so the
+      // synchronous reject in handleSocketDeath is always observed and never
+      // escapes as an unhandledRejection during the gap before the assertion.
+      const rejection = assert.rejects(
+        () => pending,
+        (err: Error) => err.message.includes("daemon_unreachable"),
+      );
+      await sleep(50);
 
-    for (const c of connections) c.destroy();
-    await sleep(50);
+      for (const c of connections) c.destroy();
+      await sleep(50);
 
-    await assert.rejects(
-      () => pending,
-      (err: Error) => err.message.includes("daemon_unreachable"),
-    );
-
-    await new Promise<void>((r) => server.close(r));
+      await rejection;
+    } finally {
+      // The socket death above triggers one reconnect to the still-listening
+      // server; disconnect the bridge and drop every server-side connection
+      // before close() so it is not left waiting on a live handle.
+      bridge.disconnect();
+      for (const c of connections) { try { c.destroy(); } catch {  } }
+      await new Promise<void>((r) => server.close(r));
+    }
   });
 
   it("reconnects once after socket death", async () => {

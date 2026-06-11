@@ -9,6 +9,8 @@ from pathlib import Path
 
 import pytest
 
+pytest.importorskip("huggingface_hub", reason="LongMemEval harness needs the hub client")
+
 
 V2_BASELINE_QIDS: list[tuple[str, str]] = [
     ("e47becba",        "single-session-user"),
@@ -23,7 +25,14 @@ V2_BASELINE_QIDS: list[tuple[str, str]] = [
 REPO_ROOT = Path(__file__).resolve().parent.parent
 V2_JSONL = REPO_ROOT / "bench" / "lme500" / "output" / "lme500-v2.json.jsonl"
 
+_HF_CACHE = Path(os.environ.get("HF_HOME") or (Path.home() / ".cache" / "huggingface"))
+HAS_LONGMEMEVAL_CACHE = any(_HF_CACHE.rglob("longmemeval_s")) if _HF_CACHE.exists() else False
 
+
+@pytest.mark.skipif(
+    not HAS_LONGMEMEVAL_CACHE,
+    reason="LongMemEval-S HF dataset not cached",
+)
 @pytest.mark.skipif(
     os.environ.get("IAI_MCP_SKIP_LME_V3_SMOKE") == "1",
     reason="IAI_MCP_SKIP_LME_V3_SMOKE=1; smoke is host-portable to bench host",
@@ -182,6 +191,10 @@ class TestFourCombinationCoverage:
             "--qid-include flag missing from --help"
         )
 
+    @pytest.mark.skipif(
+        not HAS_LONGMEMEVAL_CACHE,
+        reason="LongMemEval-S HF dataset not cached; the harness subprocess loads it",
+    )
     def test_four_combinations_are_argparse_valid(self) -> None:
         combos = [
             ("turn", "raw"),

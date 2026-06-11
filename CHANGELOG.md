@@ -5,6 +5,45 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.0.3] — 2026-06-11
+
+### Fixed
+
+- MCP `tools/list` no longer stalls ~5 seconds when the daemon is down: the
+  wrapper connects the MCP transport first and wakes the daemon in the
+  background, so tool discovery answers from the static registry immediately.
+- Shell scripts (`scripts/install.sh` and siblings) ship with the executable
+  bit set; `./scripts/install.sh` works without a `bash` prefix.
+- The wrapper test runner no longer hangs after the suite finishes (reconnect
+  socket and timer are unref'd; teardown reconnects are suppressed).
+- Store teardown is more deterministic: a reference cycle between the store
+  and its database handle was broken.
+- On machines without the optional LongMemEval dataset or a freshly built
+  native extension, the affected tests now skip instead of failing.
+
+### Added
+
+- Session capture keeps full transcripts: the per-session turn ceiling was
+  raised to 100 000 turns.
+- `iai-mcp migrate --rederive-timestamps` repairs legacy records whose
+  timestamps collapsed to a single import time.
+- Doctor: a new check flags time-collapsed episodic sessions, and the daemon
+  writes an audit event when it was respawned by the doctor.
+- Typed stubs for the native extension (`iai_mcp_native.pyi`) ship in the
+  wheel and the source tree.
+
+### Changed
+
+- launchd: the daemon installs as always-on (`RunAtLoad=true`, restart on
+  crash) instead of socket-activated. The daemon starts at login and is
+  immediately available to the first session.
+
+### Removed
+
+- The experimental summary-compression module and its optional `[compress]`
+  extra. The path was a transparent passthrough fallback; removing it drops a
+  ~2.3 GB optional model dependency.
+
 ## [1.0.2] — 2026-06-07
 
 ### Fixed

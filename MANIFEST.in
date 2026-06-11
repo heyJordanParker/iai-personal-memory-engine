@@ -17,3 +17,8 @@ include mcp-wrapper/package-lock.json
 include mcp-wrapper/tsconfig.json
 prune mcp-wrapper/node_modules
 prune mcp-wrapper/dist
+# Flat stubs beside where an editable-install flat extension resolves
+include src/iai_mcp_native.pyi
+include src/embed.pyi
+include src/graph.pyi
+include src/py.typed

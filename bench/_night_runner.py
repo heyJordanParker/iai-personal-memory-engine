@@ -25,6 +25,9 @@ def _load_tokens() -> ModuleType:
 def _load_community_pipeline_perf() -> ModuleType:
     from bench import community_pipeline_perf  # noqa: PLC0415
     return community_pipeline_perf
+def _load_pipeline_stage_timings() -> ModuleType:
+    from bench import pipeline_stage_timings  # noqa: PLC0415
+    return pipeline_stage_timings
 
 
 def _load_neural_map() -> ModuleType:
@@ -51,6 +54,7 @@ _BENCH_DISPATCH = {
     "verbatim": _load_verbatim,
     "tokens": _load_tokens,
     "community_pipeline_perf": _load_community_pipeline_perf,
+    "pipeline_stage_timings": _load_pipeline_stage_timings,
     "neural_map": _load_neural_map,
     "trajectory": _load_trajectory,
     "personal_fact_drift": _load_personal_fact_drift,

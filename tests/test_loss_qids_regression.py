@@ -9,6 +9,8 @@ from uuid import UUID, uuid4
 
 import pytest
 
+pytest.importorskip("huggingface_hub", reason="LongMemEval harness needs the hub client")
+
 os.environ.setdefault("TRANSFORMERS_VERBOSITY", "error")
 
 _HF_CACHE = Path(
