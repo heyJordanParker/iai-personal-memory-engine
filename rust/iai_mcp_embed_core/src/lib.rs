@@ -15,7 +15,7 @@
 //! wrapper crate (`iai_mcp_native`) consumes the `register(py, m)` helper to
 //! expose `Embedder` as a Python submodule.
 
-// Pitfall 4 / Pattern 6: extern crate forces the linker to include Apple
+// extern crate forces the linker to include Apple
 // Accelerate BLAS symbols. Without this, `maturin build --features accelerate`
 // succeeds but importing the wheel at runtime fails with "symbol not found".
 #[cfg(feature = "accelerate")]

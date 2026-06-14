@@ -30,7 +30,7 @@ fn truncation_api_compiles_and_runs() {
 
     // The API under test — this is the exact call signature Wave 1 will use
     // in bert.rs::BertEmbedder::load(). If the field names or method names
-    // differ from Pattern 9, this fails at compile or at runtime.
+    // differ from the additive-mask convention, this fails at compile or at runtime.
     let trunc = TruncationParams {
         max_length: 512,
         strategy: TruncationStrategy::LongestFirst,
