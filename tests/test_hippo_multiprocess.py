@@ -7,7 +7,6 @@ import textwrap
 import time
 from pathlib import Path
 
-import pytest
 
 
 _WRITER_SCRIPT = textwrap.dedent("""\
@@ -176,6 +175,7 @@ def test_multiprocess_writer_and_reader_no_corruption(
         stderr=subprocess.PIPE,
         text=True,
     )
+    writer_out, writer_err = writer.communicate(timeout=30)
 
     reader = subprocess.Popen(
         [sys.executable, "-c", _READER_SCRIPT],
@@ -184,8 +184,6 @@ def test_multiprocess_writer_and_reader_no_corruption(
         stderr=subprocess.PIPE,
         text=True,
     )
-
-    writer_out, writer_err = writer.communicate(timeout=30)
     reader_out, reader_err = reader.communicate(timeout=30)
 
     assert writer.returncode == 0, (

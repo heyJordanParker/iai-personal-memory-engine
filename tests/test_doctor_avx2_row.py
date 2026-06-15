@@ -37,8 +37,8 @@ def test_check_z_fail_when_avx2_missing(
     assert "AVX2" in result.detail, (
         f"detail must name AVX2; got {result.detail!r}"
     )
-    assert "the vector index cannot load" in result.detail, (
-        f"detail must explain the vector index cannot load; got {result.detail!r}"
+    assert "native memory store cannot load" in result.detail, (
+        f"detail must explain the native memory store cannot load; got {result.detail!r}"
     )
     assert "iai-mcp memory store is unavailable" in result.detail, (
         f"detail must say store is unavailable; got {result.detail!r}"
@@ -52,7 +52,7 @@ def test_run_diagnosis_includes_z_row() -> None:
     names = [r.name for r in results]
 
     assert len(results) == 25, (
-        f"expected 25 rows incl. (x) collapsed-timestamp check; got {len(results)}: {names}"
+        f"expected 25 rows after hippo rows (r/s/t) + (u) centrality + (v) native embedder + (w) permanent-failed + (x) collapsed-timestamp check added; got {len(results)}: {names}"
     )
     assert results[-1].name.startswith("(z)"), (
         f"the new (z) row must be last; got last name {results[-1].name!r}"

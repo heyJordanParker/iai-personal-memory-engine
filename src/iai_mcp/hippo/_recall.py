@@ -135,6 +135,10 @@ def _ann_lookup_client(
         k_actual = min(k, idx.get_current_count())
         cue_np = np.array(cue_vec, dtype=np.float32).reshape(1, -1)
         labels_arr, _distances = idx.knn_query(cue_np, k=k_actual)
+        # Clamp cosine distance to its mathematical range — the BLAS backend
+        # can produce sub-epsilon negatives on Linux. Normalized at the source
+        # so any future caller reading distances does not re-encounter the bug.
+        _distances = [max(0.0, min(2.0, float(d))) for d in _distances[0]]
         return [int(lbl) for lbl in labels_arr[0]]
     except Exception:  # noqa: BLE001 — index incompatible or corrupted
         return []

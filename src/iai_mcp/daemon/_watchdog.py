@@ -61,9 +61,14 @@ WATCHDOG_PROBE_TIMEOUT_SEC: float = float(
 WATCHDOG_FAILURE_DEBOUNCE_N: int = int(
     os.environ.get("IAI_MCP_WATCHDOG_FAILURE_DEBOUNCE_N", "3"),
 )
-# Watchdog ceiling (2.5 GiB). A full sleep/consolidation cycle adds only ~0.25 GiB
-# over a ~0.6 GiB warm resident set, so this cap catches a runaway leak without
-# ever tripping on a normal consolidation. Operator-overridable via the env var.
+# Watchdog ceiling (2.5 GiB). Measured 2026-06-14: warm resident set ~1.72 GiB
+# (Rust embedder + corpus + caches), and the per-consolidation-cycle RSS slope is
+# now flat — the double-buffered ANN index and the spawn-context graph-rebuild
+# worker removed the per-cycle allocation creep, so the daemon plateaus at the
+# warm set instead of climbing. A heavy nightly consolidation adds a bounded
+# transient on top of the plateau; the cap clears that peak with margin while
+# still catching a runaway leak (the daemon no longer drifts toward the ceiling).
+# Operator-overridable via the env var.
 WATCHDOG_RSS_HARD_CAP_BYTES: int = int(
     os.environ.get("IAI_MCP_WATCHDOG_RSS_HARD_CAP_BYTES", "2684354560"),
 )
@@ -103,7 +108,9 @@ _last_overload_event_at: float = 0.0
 _daemon_started_monotonic: float | None = None
 
 
-async def _hippea_cascade_loop(store, shutdown: asyncio.Event) -> None:
+async def _hippea_cascade_loop(
+    store, shutdown: asyncio.Event, *, _clock=time.monotonic,
+) -> None:
     from iai_mcp import retrieve
     from iai_mcp.daemon_state import load_state, save_state
     from iai_mcp.hippea_cascade import _install_warm, compute_and_fetch_warm
@@ -115,7 +122,7 @@ async def _hippea_cascade_loop(store, shutdown: asyncio.Event) -> None:
             state = await asyncio.to_thread(load_state)
             req = state.get("hippea_cascade_request") or {}
             if req.get("pending"):
-                elapsed = time.monotonic() - _pkg()._last_cascade_completed_at
+                elapsed = _clock() - _pkg()._last_cascade_completed_at
                 if elapsed < HIPPEA_CASCADE_MIN_INTERVAL_SEC:
                     pass
                 else:
@@ -175,7 +182,7 @@ async def _hippea_cascade_loop(store, shutdown: asyncio.Event) -> None:
                         except (OSError, ValueError) as exc:
                             log.debug("cascade state clear failed: %s", exc)
                     finally:
-                        setattr(_pkg(), "_last_cascade_completed_at", time.monotonic())
+                        setattr(_pkg(), "_last_cascade_completed_at", _clock())
         except Exception:  # noqa: BLE001 -- cascade loop MUST NOT crash
             log.warning("hippea cascade loop iteration failed", exc_info=True)
         try:

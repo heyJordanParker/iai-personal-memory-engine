@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import pytest
 
 
 def test_total_session_cost_reports_per_turn():
@@ -11,7 +10,7 @@ def test_total_session_cost_reports_per_turn():
     assert "per_turn" in out
     assert isinstance(out["per_turn"], list)
     assert len(out["per_turn"]) == 10, (
-        f"D5-08 script has 10 turns; got {len(out['per_turn'])}"
+        f"session-cost script has 10 turns; got {len(out['per_turn'])}"
     )
     assert out["total_tokens"] == sum(out["per_turn"])
     assert out["adapter"] == "iai-mcp"
@@ -26,7 +25,7 @@ def test_total_session_cost_minimal_le_standard():
 
     assert minimal["total_tokens"] <= standard["total_tokens"], (
         f"minimal {minimal['total_tokens']} > standard {standard['total_tokens']}"
-        " — regression"
+        " — TOK-11 regression"
     )
 
 

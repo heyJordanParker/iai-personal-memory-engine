@@ -1,7 +1,9 @@
 from __future__ import annotations
 
 import os
+import shutil
 import sys
+import tempfile
 from pathlib import Path
 
 import pytest
@@ -28,7 +30,7 @@ from _recall_helpers import (  # noqa: E402,F401
 )
 
 
-_TEST_PASSPHRASE = "iai-mcp-test-passphrase-2026-04-30-phase-07.10"
+_TEST_PASSPHRASE = "iai-mcp-test-passphrase-2026-04-30"
 
 
 @pytest.fixture(autouse=True)
@@ -230,6 +232,14 @@ def pytest_collection_modifyitems(
         for item in items:
             if "live" in item.keywords:
                 item.add_marker(skip_live)
+
+
+@pytest.fixture()
+def short_socket():
+    d = Path(tempfile.mkdtemp(prefix="iai-sock-"))
+    sock = d / "d.sock"
+    yield sock
+    shutil.rmtree(d, ignore_errors=True)
 
 
 @pytest.fixture

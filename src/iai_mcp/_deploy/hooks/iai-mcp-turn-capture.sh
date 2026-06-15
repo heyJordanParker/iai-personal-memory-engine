@@ -47,7 +47,7 @@ import sys
 from datetime import datetime, timezone
 from pathlib import Path
 
-MAX_TURNS = 200
+MAX_TURNS = 100_000
 
 session_id = sys.argv[1]
 stdin_path = Path(sys.argv[2]).expanduser()

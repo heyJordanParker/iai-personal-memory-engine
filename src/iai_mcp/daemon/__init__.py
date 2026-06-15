@@ -1002,7 +1002,7 @@ async def main() -> int:
             S2OscillationBlocked,
             S2OscillationConflict,
         )
-        from iai_mcp.sleep_pipeline import SleepPipeline as _SleepPipeline
+        from iai_mcp.lilli.cycle.sleep_pipeline import SleepPipeline as _SleepPipeline
 
         from pathlib import Path as _PathHere
         _store_root = os.environ.get("IAI_MCP_STORE")

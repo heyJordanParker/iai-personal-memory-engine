@@ -10,7 +10,6 @@ import time
 import pytest
 
 from iai_mcp import daemon
-from tests.conftest_short_socket import short_socket  # noqa: F401  — exposes fixture
 
 HARD_CAP = 2_684_354_560
 FLOOR = 1_610_612_736
@@ -298,6 +297,31 @@ def test_thread_warn_plus_big_memory_kill(watchdog_env):
     crumb = _read_breadcrumb(watchdog_env.log_path)
     assert daemon.DAEMON_MEMORY_PRESSURE_KILL in crumb
     assert "reason=memory" in crumb
+
+
+def test_in_grace_window_suppresses_memory_kill(watchdog_env, monkeypatch):
+    # A booting daemon must NOT self-kill while within the cold-start grace
+    # window. The tick reads the boot timestamp from the package slot; if it
+    # read a stale module-local slot, uptime would collapse to the 1e9 branch,
+    # in_grace would be False, and these memory-kill inputs would trigger a
+    # spurious kill. Override the boot timestamp to "just started" (uptime ~ 0).
+    monkeypatch.setattr(daemon, "_daemon_started_monotonic", time.monotonic())
+    store = object()
+    consec = 0
+    for _ in range(DEBOUNCE_N):
+        _interval, consec = daemon._watchdog_tick(
+            store,
+            watchdog_env.sock_path,
+            watchdog_env.log_path,
+            consec,
+            probe_fn=_probe(True),
+            pressure_fn=lambda: WARN,
+            rss_fn=lambda: RSS_BIG,
+        )
+    assert watchdog_env.kill_calls == [], (
+        "watchdog self-killed within the cold-start grace window — "
+        "_watchdog_tick is reading a stale boot timestamp, not the package slot"
+    )
 
 
 def test_thread_warn_another_process_owns_ram_no_kill(watchdog_env):

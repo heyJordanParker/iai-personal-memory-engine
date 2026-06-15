@@ -8,7 +8,7 @@ import pytest
 import iai_mcp.sleep as sleep_module
 import iai_mcp.user_model as user_model_module
 from iai_mcp.lifecycle_event_log import LifecycleEventLog
-from iai_mcp.sleep_pipeline import SleepPipeline
+from iai_mcp.lilli.cycle.sleep_pipeline import SleepPipeline
 from iai_mcp.user_model import UserModel
 
 @pytest.fixture

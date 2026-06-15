@@ -10,6 +10,7 @@ from __future__ import annotations
 import asyncio
 import logging
 import os
+import platform
 import subprocess
 import time
 from pathlib import Path
@@ -18,6 +19,7 @@ from typing import Any
 from iai_mcp.doctor import (
     CheckResult,
     _extract_binder_pids,
+    _extract_binder_pids_ss,
     _format_relative_short,
     _resolve_lifecycle_log_dir,
     _resolve_lifecycle_state_path,
@@ -300,6 +302,20 @@ def check_g_no_dup_binders() -> CheckResult:
             f"lsof unavailable: {e} (skip)",
         )
     binder_pids = _extract_binder_pids(result.stdout, socket_path)
+    if not binder_pids and platform.system() == "Linux":
+        # Non-root Linux cannot read other procs' /proc/<pid>/fd/ via lsof; fall back to
+        # `ss -lxp`, which reads the globally-readable /proc/net/unix.
+        try:
+            ss_result = subprocess.run(
+                ["ss", "-lxp"],
+                capture_output=True,
+                text=True,
+                timeout=5,
+                check=False,
+            )
+            binder_pids = _extract_binder_pids_ss(ss_result.stdout, socket_path)
+        except (FileNotFoundError, subprocess.TimeoutExpired):
+            pass
     if len(binder_pids) <= 1:
         return CheckResult(
             "(g) no dup binders",

@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import argparse
 from datetime import datetime, timedelta, timezone
-from pathlib import Path
 from unittest.mock import MagicMock
 
 import pytest
@@ -12,7 +11,7 @@ from iai_mcp.lifecycle_state import (
     load_state,
     save_state,
 )
-from iai_mcp.sleep_pipeline import SleepStep
+from iai_mcp.lilli.cycle.sleep_pipeline import SleepStep
 
 
 def _make_args(**kwargs) -> argparse.Namespace:
@@ -56,15 +55,15 @@ def _patch_store_open(monkeypatch: pytest.MonkeyPatch) -> MagicMock:
 def _patch_pipeline_steps_to_noop(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    from iai_mcp.sleep_pipeline import SleepPipeline
+    from iai_mcp.lilli.cycle.sleep_pipeline import SleepPipeline
 
     for step, method_name in [
         (SleepStep.SCHEMA_MINE, "_step_schema_mine"),
         (SleepStep.KNOB_TUNE, "_step_knob_tune"),
         (SleepStep.DREAM_DECAY, "_step_dream_decay"),
         (SleepStep.ERASURE_AGENT, "_step_erasure_agent"),
-        (SleepStep.OPTIMIZE_LANCE, "_step_optimize_lance"),
-        (SleepStep.COMPACT_RECORDS, "_step_compact_records"),
+        (SleepStep.OPTIMIZE_HIPPO, "_step_optimize_hippo"),
+        (SleepStep.HIPPO_CLEANUP, "_step_hippo_cleanup"),
         (SleepStep.CLUSTER_REPLAY, "_step_cluster_replay"),
         (SleepStep.CRISIS_RECLUSTER, "_step_crisis_recluster"),
         (SleepStep.RECONSOLIDATION, "_step_reconsolidation"),
@@ -103,8 +102,8 @@ def test_happy_path_runs_pipeline_and_prints_progress(
     assert "Sleep cycle started." in out
     assert "[1/13] schema_mine" in out
     assert "[2/13] knob_tune" in out
-    assert "[3/13] optimize_lance" in out
-    assert "[4/13] compact_records" in out
+    assert "[3/13] optimize_hippo" in out
+    assert "[4/13] hippo_cleanup" in out
     assert "[5/13] dream_decay" in out
     assert "[6/13] erasure_agent" in out
     assert "[7/13] cluster_replay" in out
@@ -224,13 +223,13 @@ def test_failure_returns_nonzero_with_error_in_stderr(
     _patch_store_open(monkeypatch)
     _patch_pipeline_steps_to_noop(monkeypatch)
 
-    from iai_mcp.sleep_pipeline import SleepPipeline
+    from iai_mcp.lilli.cycle.sleep_pipeline import SleepPipeline
 
     def _raiser(self, _interrupt_check):
         raise RuntimeError("synthetic optimize failure")
 
     monkeypatch.setattr(
-        SleepPipeline, "_step_optimize_lance", _raiser,
+        SleepPipeline, "_step_optimize_hippo", _raiser,
     )
 
     from iai_mcp.cli import cmd_maintenance_sleep_cycle
@@ -240,7 +239,7 @@ def test_failure_returns_nonzero_with_error_in_stderr(
     captured = capsys.readouterr()
     assert "[1/13] schema_mine" in captured.out
     assert "[2/13] knob_tune" in captured.out
-    assert "[3/13] optimize_lance ... FAILED" in captured.err
+    assert "[3/13] optimize_hippo ... FAILED" in captured.err
     assert "synthetic optimize failure" in captured.err
 
 
@@ -250,7 +249,7 @@ def test_failure_after_3rd_strike_prints_quarantine_hint(
     _patch_store_open(monkeypatch)
     _patch_pipeline_steps_to_noop(monkeypatch)
 
-    from iai_mcp.sleep_pipeline import SleepPipeline
+    from iai_mcp.lilli.cycle.sleep_pipeline import SleepPipeline
 
     def _raiser(self, _interrupt_check):
         raise RuntimeError("boom")

@@ -84,7 +84,7 @@ def test_apply_headless_downgrade_mutates_b_and_n() -> None:
         CheckResult(
             name="(z) AVX2 CPU support",
             passed=False,
-            detail="this host lacks AVX2 -- the vector index cannot load",
+            detail="this host lacks AVX2 -- the native memory store cannot load",
             status="FAIL",
         ),
     ]

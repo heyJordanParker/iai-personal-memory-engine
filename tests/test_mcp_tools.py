@@ -44,7 +44,7 @@ def daemon_sock() -> "Path":
     env["IAI_MCP_STORE"] = str(store_dir)
     env.setdefault(
         "IAI_MCP_CRYPTO_PASSPHRASE",
-        "iai-mcp-test-passphrase-2026-04-30-phase-07.10",
+        "iai-mcp-test-passphrase-2026-04-30",
     )
     env["IAI_DAEMON_IDLE_SHUTDOWN_SECS"] = "300"
     env["PYTHONPATH"] = str(REPO / "src") + os.pathsep + env.get("PYTHONPATH", "")

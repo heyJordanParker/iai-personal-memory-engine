@@ -14,6 +14,7 @@ BENCH_DIR = WORKTREE_ROOT / "bench"
 BENCH_SCRIPTS_NEEDING_SHIM = [
     "_night_runner.py",
     "community_pipeline_perf.py",
+    "consolidation_rss_peak.py",
     "contradiction_longitudinal_claude.py",
     "embedder_baseline.py",
     "embedder_latency.py",

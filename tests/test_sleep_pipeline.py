@@ -12,7 +12,7 @@ from iai_mcp.lifecycle_state import (
     load_state,
     save_state,
 )
-from iai_mcp.sleep_pipeline import (
+from iai_mcp.lilli.cycle.sleep_pipeline import (
     SleepPipeline,
     SleepPipelineResult,
     SleepStep,
@@ -73,11 +73,11 @@ def _patch_steps_to_noop(
         _make_step(SleepStep.ERASURE_AGENT),
     )
     monkeypatch.setattr(
-        pipeline, "_step_optimize_lance", _make_step(SleepStep.OPTIMIZE_LANCE),
+        pipeline, "_step_optimize_hippo", _make_step(SleepStep.OPTIMIZE_HIPPO),
     )
     monkeypatch.setattr(
-        pipeline, "_step_compact_records",
-        _make_step(SleepStep.COMPACT_RECORDS),
+        pipeline, "_step_hippo_cleanup",
+        _make_step(SleepStep.HIPPO_CLEANUP),
     )
     monkeypatch.setattr(
         pipeline, "_step_cluster_replay",
@@ -119,8 +119,8 @@ def test_pipeline_runs_9_steps_in_order(
     assert calls == [
         SleepStep.SCHEMA_MINE,
         SleepStep.KNOB_TUNE,
-        SleepStep.OPTIMIZE_LANCE,
-        SleepStep.COMPACT_RECORDS,
+        SleepStep.OPTIMIZE_HIPPO,
+        SleepStep.HIPPO_CLEANUP,
         SleepStep.DREAM_DECAY,
         SleepStep.ERASURE_AGENT,
         SleepStep.CLUSTER_REPLAY,
@@ -162,7 +162,7 @@ def test_pipeline_emits_started_and_completed_events(
     assert [e["step"] for e in started] == [
         s.name for s in (
             SleepStep.SCHEMA_MINE, SleepStep.KNOB_TUNE,
-            SleepStep.OPTIMIZE_LANCE, SleepStep.COMPACT_RECORDS,
+            SleepStep.OPTIMIZE_HIPPO, SleepStep.HIPPO_CLEANUP,
             SleepStep.DREAM_DECAY, SleepStep.ERASURE_AGENT,
             SleepStep.CLUSTER_REPLAY,
             SleepStep.RECONSOLIDATION,
@@ -194,8 +194,8 @@ def test_pipeline_resume_from_step_N(
     pipeline.run()
 
     assert calls == [
-        SleepStep.OPTIMIZE_LANCE,
-        SleepStep.COMPACT_RECORDS,
+        SleepStep.OPTIMIZE_HIPPO,
+        SleepStep.HIPPO_CLEANUP,
         SleepStep.DREAM_DECAY,
         SleepStep.ERASURE_AGENT,
         SleepStep.CLUSTER_REPLAY,
@@ -227,8 +227,8 @@ def test_pipeline_resume_after_cycle_complete_treated_as_fresh(
     assert calls == [
         SleepStep.SCHEMA_MINE,
         SleepStep.KNOB_TUNE,
-        SleepStep.OPTIMIZE_LANCE,
-        SleepStep.COMPACT_RECORDS,
+        SleepStep.OPTIMIZE_HIPPO,
+        SleepStep.HIPPO_CLEANUP,
         SleepStep.DREAM_DECAY,
         SleepStep.ERASURE_AGENT,
         SleepStep.CLUSTER_REPLAY,
@@ -253,8 +253,8 @@ def _patch_step_to_raise(
         SleepStep.KNOB_TUNE: "_step_knob_tune",
         SleepStep.DREAM_DECAY: "_step_dream_decay",
         SleepStep.ERASURE_AGENT: "_step_erasure_agent",
-        SleepStep.OPTIMIZE_LANCE: "_step_optimize_lance",
-        SleepStep.COMPACT_RECORDS: "_step_compact_records",
+        SleepStep.OPTIMIZE_HIPPO: "_step_optimize_hippo",
+        SleepStep.HIPPO_CLEANUP: "_step_hippo_cleanup",
         SleepStep.CLUSTER_REPLAY: "_step_cluster_replay",
         SleepStep.RECONSOLIDATION: "_step_reconsolidation",
         SleepStep.USER_MODEL_UPDATE: "_step_user_model_update",
@@ -282,15 +282,15 @@ def test_pipeline_failure_persists_progress(
     assert result["completed_steps"] == [
         SleepStep.SCHEMA_MINE,
         SleepStep.KNOB_TUNE,
-        SleepStep.OPTIMIZE_LANCE,
-        SleepStep.COMPACT_RECORDS,
+        SleepStep.OPTIMIZE_HIPPO,
+        SleepStep.HIPPO_CLEANUP,
     ]
 
     record = load_state(state_path)
     progress = record["sleep_cycle_progress"]
     assert progress is not None
     assert progress["last_completed_index"] == SleepPipeline._STEP_ORDER.index(
-        SleepStep.COMPACT_RECORDS,
+        SleepStep.HIPPO_CLEANUP,
     )
     assert progress["attempt"] == 1
     assert "synthetic failure" in (progress["last_error"] or "")
@@ -309,7 +309,7 @@ def test_pipeline_resume_then_fail_again_increments_attempt(
     progress = record["sleep_cycle_progress"]
     assert progress is not None
     assert progress["last_completed_index"] == SleepPipeline._STEP_ORDER.index(
-        SleepStep.COMPACT_RECORDS,
+        SleepStep.HIPPO_CLEANUP,
     )
     assert progress["attempt"] == 2
     assert record["quarantine"] is None
@@ -319,19 +319,19 @@ def test_pipeline_3_strike_quarantine(
     monkeypatch: pytest.MonkeyPatch,
     state_path: Path,
 ):
-    _patch_step_to_raise(pipeline, monkeypatch, SleepStep.OPTIMIZE_LANCE)
+    _patch_step_to_raise(pipeline, monkeypatch, SleepStep.OPTIMIZE_HIPPO)
 
     pipeline.run()
     pipeline.run()
     result = pipeline.run()
 
     assert result["quarantine_triggered"] is True
-    assert result["failed_step"] == SleepStep.OPTIMIZE_LANCE
+    assert result["failed_step"] == SleepStep.OPTIMIZE_HIPPO
 
     record = load_state(state_path)
     assert record["quarantine"] is not None
     quarantine = record["quarantine"]
-    assert "OPTIMIZE_LANCE" in quarantine["reason"]
+    assert "OPTIMIZE_HIPPO" in quarantine["reason"]
     assert "3x" in quarantine["reason"]
     until = datetime.fromisoformat(quarantine["until_ts"])
     since = datetime.fromisoformat(quarantine["since_ts"])
@@ -382,7 +382,7 @@ def test_pipeline_quarantine_auto_recovery_after_ttl(
     assert result["quarantine_triggered"] is False
     assert calls == [
         SleepStep.SCHEMA_MINE, SleepStep.KNOB_TUNE,
-        SleepStep.OPTIMIZE_LANCE, SleepStep.COMPACT_RECORDS,
+        SleepStep.OPTIMIZE_HIPPO, SleepStep.HIPPO_CLEANUP,
         SleepStep.DREAM_DECAY, SleepStep.ERASURE_AGENT,
         SleepStep.CLUSTER_REPLAY,
         SleepStep.RECONSOLIDATION,
@@ -477,8 +477,8 @@ def test_pipeline_bounded_deferral_persists_chunk_idx(
     assert result["completed_steps"] == [
         SleepStep.SCHEMA_MINE,
         SleepStep.KNOB_TUNE,
-        SleepStep.OPTIMIZE_LANCE,
-        SleepStep.COMPACT_RECORDS,
+        SleepStep.OPTIMIZE_HIPPO,
+        SleepStep.HIPPO_CLEANUP,
     ]
     assert result["failed_step"] is None
 
@@ -486,7 +486,7 @@ def test_pipeline_bounded_deferral_persists_chunk_idx(
     progress = record["sleep_cycle_progress"]
     assert progress is not None
     assert progress["last_completed_index"] == SleepPipeline._STEP_ORDER.index(
-        SleepStep.COMPACT_RECORDS,
+        SleepStep.HIPPO_CLEANUP,
     )
     err = progress["last_error"] or ""
     assert err.startswith("deferred:")
@@ -543,7 +543,7 @@ def test_pipeline_atomic_no_corruption_on_step_crash(
     state_path: Path,
 ):
     _patch_step_to_raise(
-        pipeline, monkeypatch, SleepStep.OPTIMIZE_LANCE,
+        pipeline, monkeypatch, SleepStep.OPTIMIZE_HIPPO,
         error_msg="lance shard corrupt",
     )
     pipeline.run()
@@ -668,7 +668,7 @@ def test_pipeline_legacy_last_completed_step_field_migrated(
     pipeline.run()
 
     assert calls == [
-        SleepStep.COMPACT_RECORDS,
+        SleepStep.HIPPO_CLEANUP,
         SleepStep.DREAM_DECAY,
         SleepStep.ERASURE_AGENT,
         SleepStep.CLUSTER_REPLAY,
@@ -686,8 +686,8 @@ def test_pipeline_legacy_last_completed_step_field_migrated(
     assert calls2 == [
         SleepStep.SCHEMA_MINE,
         SleepStep.KNOB_TUNE,
-        SleepStep.OPTIMIZE_LANCE,
-        SleepStep.COMPACT_RECORDS,
+        SleepStep.OPTIMIZE_HIPPO,
+        SleepStep.HIPPO_CLEANUP,
         SleepStep.DREAM_DECAY,
         SleepStep.ERASURE_AGENT,
         SleepStep.CLUSTER_REPLAY,
@@ -719,8 +719,8 @@ def test_pipeline_legacy_last_completed_step_zero_starts_fresh(
     assert calls == [
         SleepStep.SCHEMA_MINE,
         SleepStep.KNOB_TUNE,
-        SleepStep.OPTIMIZE_LANCE,
-        SleepStep.COMPACT_RECORDS,
+        SleepStep.OPTIMIZE_HIPPO,
+        SleepStep.HIPPO_CLEANUP,
         SleepStep.DREAM_DECAY,
         SleepStep.ERASURE_AGENT,
         SleepStep.CLUSTER_REPLAY,

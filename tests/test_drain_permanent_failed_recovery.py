@@ -1,14 +1,10 @@
 from __future__ import annotations
 
 import json
-import os
 import sys
-from pathlib import Path
 
-import pytest
-
-from iai_mcp.capture import capture_turn
-from tests.conftest_recall import make_tmp_store
+from iai_mcp.capture import capture_turn, drain_permanent_failed_files
+from tests._helpers import make_tmp_store
 
 
 def test_tem_import_guard(tmp_path, monkeypatch):
@@ -26,7 +22,7 @@ def test_tem_import_guard(tmp_path, monkeypatch):
             role="user",
         )
         assert result["status"] == "inserted", (
-            f"store.insert must survive ImportError from iai_mcp.tem "
+            f"REQ-3: store.insert must survive ImportError from iai_mcp.tem "
             f"when the guard is present; got status={result['status']!r} "
             f"reason={result.get('reason')!r}. "
             "The tem import must be wrapped in try/except ImportError: pass."
@@ -72,12 +68,7 @@ def test_drain_permanent_failed_reingests(tmp_path, monkeypatch):
     monkeypatch.setenv("IAI_MCP_STORE", str(tmp_path / "hippo"))
     monkeypatch.setenv("IAI_DAEMON_SOCKET_PATH", str(tmp_path / "test.sock"))
 
-    try:
-        from iai_mcp.capture import drain_permanent_failed_files  # type: ignore[attr-defined]
-    except (ImportError, AttributeError):
-        pytest.xfail(reason="drain_permanent_failed_files not yet implemented")
-
-    drained = drain_permanent_failed_files(store, deferred_dir=captures_dir)  # type: ignore[call-arg]
+    drained = drain_permanent_failed_files(store, deferred_dir=captures_dir)
 
     records = store.all_records()
     matching = [r for r in records if genuine_text in r.literal_surface]

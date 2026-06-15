@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import json
 import os
-import subprocess
 from datetime import datetime, timezone
 from pathlib import Path
 from unittest.mock import patch
@@ -298,7 +297,7 @@ def test_doctor_row_l_quarantine_active_long_fails(
         "quarantine": {
             "since_ts": since,
             "until_ts": until,
-            "reason": "sleep step 4 (OPTIMIZE_LANCE) failed 3x",
+            "reason": "sleep step 4 (OPTIMIZE_HIPPO) failed 3x",
         },
         "shadow_run": False,
     }
@@ -333,7 +332,7 @@ def test_doctor_row_l_quarantine_expired_passes(
         "quarantine": {
             "since_ts": since,
             "until_ts": until,
-            "reason": "sleep step 5 (COMPACT_RECORDS) failed 3x",
+            "reason": "sleep step 5 (HIPPO_CLEANUP) failed 3x",
         },
         "shadow_run": False,
     }

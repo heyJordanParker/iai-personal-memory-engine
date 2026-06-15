@@ -62,26 +62,7 @@ def test_drowsy_rewake_cold_then_rebuild_ready(monkeypatch, tmp_path):
         f"After invalidate the cache must be cold; got {src_cold!r}."
     )
 
-    kick_fn = getattr(runtime_graph_cache, "_rebuild_and_save_rgc", None)
-    kick_daemon = getattr(
-        __import__("iai_mcp.daemon", fromlist=["_kick_drowsy_rgc_rebuild"]),
-        "_kick_drowsy_rgc_rebuild",
-        None,
-    )
     rebuild_ready_event = getattr(runtime_graph_cache, "rebuild_ready", None)
-
-    if kick_fn is None:
-        pytest.fail(
-            "seam not yet implemented: runtime_graph_cache._rebuild_and_save_rgc"
-        )
-    if kick_daemon is None:
-        pytest.fail(
-            "seam not yet implemented: daemon._kick_drowsy_rgc_rebuild"
-        )
-    if rebuild_ready_event is None:
-        pytest.fail(
-            "seam not yet implemented: runtime_graph_cache.rebuild_ready (threading.Event)"
-        )
 
     gate = threading.Event()
     real_rebuild = runtime_graph_cache._rebuild_and_save_rgc  # type: ignore[attr-defined]
@@ -128,11 +109,6 @@ def test_wake_hook_rebuilds_cold_cache(monkeypatch, tmp_path):
     )
 
     import iai_mcp.daemon as _daemon_mod
-    helper = getattr(_daemon_mod, "_wake_hook_rebuild_if_cold", None)
-    if helper is None:
-        pytest.fail(
-            "seam not yet implemented: daemon._wake_hook_rebuild_if_cold"
-        )
 
     _daemon_mod._wake_hook_rebuild_if_cold(store)  # type: ignore[attr-defined]
 
@@ -157,11 +133,6 @@ def test_wake_hook_skips_when_warm(monkeypatch, tmp_path):
     gen_before = runtime_graph_cache.get_current_generation()
 
     import iai_mcp.daemon as _daemon_mod
-    helper = getattr(_daemon_mod, "_wake_hook_rebuild_if_cold", None)
-    if helper is None:
-        pytest.fail(
-            "seam not yet implemented: daemon._wake_hook_rebuild_if_cold"
-        )
 
     _daemon_mod._wake_hook_rebuild_if_cold(store)  # type: ignore[attr-defined]
 

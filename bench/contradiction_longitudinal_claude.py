@@ -22,7 +22,7 @@ import subprocess
 import sys
 import time
 import warnings
-from dataclasses import dataclass, field, asdict
+from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
@@ -225,7 +225,7 @@ def _gather_env_metadata(store_dir: Path, seed_list: list[int]) -> dict[str, Any
         "iai_mcp_git_sha": sha,
         "iai_mcp_git_dirty": dirty,
         "lance_version": _pkg_version("lance"),
-        "hnswlib_version": _pkg_version("hnswlib"),
+        "lancedb_version": _pkg_version("lancedb"),
         "pyarrow_version": _pkg_version("pyarrow"),
         "sentence_transformers_version": _pkg_version("sentence-transformers"),
         "embedder_model": embedder_model,
@@ -405,10 +405,9 @@ def run_one_seed(
     from iai_mcp.lifecycle_event_log import LifecycleEventLog
     from iai_mcp.pipeline import recall_for_benchmark
     from iai_mcp.retrieve import build_runtime_graph, contradict
-    from iai_mcp.sleep_pipeline import SleepPipeline
+    from iai_mcp.lilli.cycle.sleep_pipeline import SleepPipeline
     from iai_mcp.store import MemoryStore
     from iai_mcp.types import MemoryRecord
-    import numpy as np
 
     gate = {"insert_ok": False, "contradict_ok": False, "sleep_ok": False,
             "errors": []}
@@ -418,7 +417,7 @@ def run_one_seed(
     if not os.environ.get("IAI_MCP_CRYPTO_PASSPHRASE"):
         os.environ["IAI_MCP_CRYPTO_PASSPHRASE"] = BENCH_PASSPHRASE
 
-    store = MemoryStore(path=store_dir_for_seed / "hippo")
+    store = MemoryStore(path=store_dir_for_seed / "lancedb")
     embedder = Embedder(model_key=embedder_key)
 
     _ = embedder.embed_batch(["warm-up " + str(i) for i in range(WARMUP_PASSES)])
@@ -893,9 +892,9 @@ def write_outputs(
         "",
         "## Notes on metric design",
         "",
-        "- **Metric A (verbatim preserved)** tests the system's promise that contradiction = reconsolidation, never overwrite. Pipeline beating cosine here = real architectural advantage.",
-        "- **Metric B-classical (rank current above cosine)** tests an expectation the system does not make. The system uses dual-route + inhibitory edges + hints, not rerank. Expect ΔMRR ≈ 0; this is a feature, not a bug.",
-        "- **Metric B-contract (s4_contradiction hint OR anti_hits ≥80%)** tests what the system actually promises: emit contradiction signals for contradicted pairs. Cosine cannot do either; pipeline either signals contradictions or it doesn't.",
+        "- **Metric A (verbatim preserved)** tests REQUIREMENTS.md MEM-05 — the system's promise that contradiction = reconsolidation, never overwrite. Pipeline beating cosine here = real architectural advantage.",
+        "- **Metric B-classical (rank current above cosine)** tests an expectation the system does not promise: it uses dual-route + inhibitory edges + hints, not rerank. Expect ΔMRR ≈ 0; this is a feature, not a bug.",
+        "- **Metric B-contract (s4_contradiction hint OR anti_hits ≥80%)** tests what the system actually promises (REQUIREMENTS.md MEM-08, MCP-01 dual-route). Cosine cannot do either; pipeline either signals contradictions or it doesn't.",
         "",
     ]
     md_path.write_text("\n".join(lines))
@@ -913,9 +912,9 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--store-dir", default=DEFAULT_STORE_DIR,
                         help=f"Bench-isolated IAI_MCP_STORE (default {DEFAULT_STORE_DIR})")
     parser.add_argument("--seeds", nargs="+", type=int, default=DEFAULT_SEEDS,
-                        help="≥3 RNG seeds (mandatory for cross-seed gate)")
+                        help="≥3 RNG seeds (DESIGN §5.2 mandatory)")
     parser.add_argument("--n-slices", nargs="+", type=int, default=[0, 1],
-                        help="Sleep cycles to run per seed")
+                        help="Sleep cycles to run per seed (DESIGN §3.2)")
     parser.add_argument("--k-hits", type=int, default=DEFAULT_K)
     parser.add_argument("--output-dir", default=DEFAULT_OUTPUT_DIR)
     parser.add_argument("--embedder", default="bge-small-en-v1.5")
@@ -923,13 +922,13 @@ def main(argv: list[str] | None = None) -> int:
                         help="Metric A: A_after >= a_threshold * A_baseline")
     parser.add_argument("--floor-mode", choices=["strict", "relaxed"], default="relaxed",
                         help=("Catastrophic floor for Metric A. "
-                              "strict = top-1 must NOT be a correction marker; "
+                              "strict = top-1 must NOT be a correction marker (DESIGN.md literal); "
                               "relaxed = original must be in top-k (more lenient, default)."))
     args = parser.parse_args(argv)
 
     if len(args.seeds) < 3:
         print(f"[setup-gate] REFUSE: need ≥3 seeds, got {len(args.seeds)} "
-              f"(mandatory for cross-seed gate).", file=sys.stderr)
+              f"(DESIGN §5.2 mandatory).", file=sys.stderr)
         return 2
 
     store_dir = Path(args.store_dir).expanduser().resolve()

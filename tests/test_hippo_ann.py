@@ -7,7 +7,6 @@ from pathlib import Path
 from uuid import uuid4
 
 import numpy as np
-import pytest
 
 from iai_mcp.hippo import HippoDB
 from iai_mcp.types import EMBED_DIM
@@ -234,3 +233,40 @@ def test_concurrent_add_rlock_protected(tmp_path: Path) -> None:
         assert len(db._label_map) == total, (
             f"_label_map should have {total} entries, got {len(db._label_map)}"
         )
+
+
+class _StubHnsw:
+    def __init__(self, labels: np.ndarray, distances: np.ndarray) -> None:
+        self._labels = labels
+        self._distances = distances
+
+    def knn_query(self, *_args, **_kwargs):  # noqa: ANN002, ANN003
+        return self._labels, self._distances
+
+
+def test_knn_query_distance_clamped_on_negative(tmp_path: Path) -> None:
+    rng = np.random.default_rng(99)
+    vec = _rng_unit_vec(rng)
+    rid = str(uuid4())
+
+    with HippoDB(tmp_path) as db:
+        tbl = db.open_table("records")
+        tbl.add([_record_row(rid=rid, embedding=vec)])
+
+        inserted_label = next(iter(db._label_map.values()))
+
+        synthetic_labels = np.array([[inserted_label]], dtype=np.int32)
+        synthetic_distances = np.array([[-1.192e-7]], dtype=np.float32)
+
+        original_hnsw = db._hnsw
+        db._hnsw = _StubHnsw(synthetic_labels, synthetic_distances)
+        try:
+            df = tbl.search(vec).limit(1).to_pandas()
+        finally:
+            db._hnsw = original_hnsw
+
+    assert len(df) == 1, f"expected 1 row from stubbed knn_query, got {len(df)}"
+    assert df["_distance"].iloc[0] == 0.0, (
+        "distance clamp must map negative BLAS-rounding values to 0.0; "
+        f"got {df['_distance'].iloc[0]!r}"
+    )

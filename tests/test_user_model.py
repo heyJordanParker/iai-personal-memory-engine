@@ -1,12 +1,10 @@
 from __future__ import annotations
 
-import json
 import os
 import stat
 import uuid
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
-from typing import Any
 
 import pytest
 
@@ -16,7 +14,7 @@ from iai_mcp.daemon import (
 )
 from iai_mcp.events import query_events, write_event
 from iai_mcp.lifecycle_state import default_state, save_state
-from iai_mcp.sleep_pipeline import (
+from iai_mcp.lilli.cycle.sleep_pipeline import (
     STEP_PHASE,
     SleepPhase,
     SleepPipeline,
@@ -445,5 +443,4 @@ def test_R7_defaults_pass(monkeypatch: pytest.MonkeyPatch) -> None:
     assert cfg.dry_run is True
 
 if __name__ == "__main__":  # pragma: no cover -- direct-run convenience
-    import sys
     raise SystemExit(pytest.main([__file__, "-v"]))

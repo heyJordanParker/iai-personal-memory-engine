@@ -5,6 +5,7 @@ import asyncio
 import json
 import os
 import platform
+import re
 import signal
 import sqlite3
 import logging
@@ -145,6 +146,20 @@ def _extract_binder_pids(lsof_output: str, target_socket: Path) -> set[int]:
             name = line[1:]
             if name == target:
                 pids.add(current_pid)
+    return pids
+
+
+def _extract_binder_pids_ss(ss_output: str, target_socket: Path) -> set[int]:
+    # Linux: lsof requires root to introspect other processes' /proc/<pid>/fd/;
+    # `ss -lxp` reads the globally-readable /proc/net/unix and embeds the
+    # binder pid in a `users:(("...",pid=N,fd=K))` field on the matching path line.
+    pids: set[int] = set()
+    target = str(target_socket)
+    for line in ss_output.splitlines():
+        if target not in line:
+            continue
+        for m in re.finditer(r"pid=(\d+)", line):
+            pids.add(int(m.group(1)))
     return pids
 
 
@@ -406,6 +421,20 @@ def _kill_dup_binders() -> tuple[bool, str, int]:
             int((time.monotonic() - t0) * 1000),
         )
     binder_pids = _extract_binder_pids(result.stdout, socket_path)
+    if not binder_pids and platform.system() == "Linux":
+        # Non-root Linux cannot read other procs' /proc/<pid>/fd/ via lsof; fall back to
+        # `ss -lxp`, which reads the globally-readable /proc/net/unix.
+        try:
+            ss_result = subprocess.run(
+                ["ss", "-lxp"],
+                capture_output=True,
+                text=True,
+                timeout=5,
+                check=False,
+            )
+            binder_pids = _extract_binder_pids_ss(ss_result.stdout, socket_path)
+        except (FileNotFoundError, subprocess.TimeoutExpired):
+            pass
     if len(binder_pids) <= 1:
         return (
             True,
@@ -626,6 +655,7 @@ __all__ = [
     "_apply_headless_downgrade",
     "_format_top_of_output_hint",
     "_extract_binder_pids",
+    "_extract_binder_pids_ss",
     "_resolve_hippo_db_path",
     "_kill_dup_binders",
     "check_a_daemon_alive",

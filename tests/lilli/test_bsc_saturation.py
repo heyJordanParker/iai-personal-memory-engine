@@ -135,7 +135,7 @@ def test_telemetry_kind_string_matches_events_module() -> None:
     from iai_mcp import events
 
     if not hasattr(events, "TELEMETRY_ROLE_SATURATION"):
-        pytest.skip("events.TELEMETRY_ROLE_SATURATION not yet defined (46-10 has not shipped)")
+        pytest.skip("events.TELEMETRY_ROLE_SATURATION not yet defined")
 
     assert _TELEMETRY_ROLE_SATURATION_KIND == events.TELEMETRY_ROLE_SATURATION, (
         f"bsc._TELEMETRY_ROLE_SATURATION_KIND={_TELEMETRY_ROLE_SATURATION_KIND!r} "

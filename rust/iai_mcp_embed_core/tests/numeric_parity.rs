@@ -53,7 +53,7 @@ fn baseline_sha256_matches_constitutional_value() {
     // SHA256 of the full on-disk vectors.npy file (magic + NPY header + raw bytes).
     // Note: this differs from `hashlib.sha256(np_array.tobytes())` by ~80 bytes
     // of NPY header. The capture script (bench/embedder_baseline.py) was patched
-    // post-49-03 to hash the file after np.save, not vectors.tobytes() before.
+    // hash the file after np.save, not vectors.tobytes() before.
     let expected = "31cc9bb0643835b872dbd21e0553b898e3de79cc28aebcf8c27814363ec5432b";
     assert_eq!(
         actual, expected,

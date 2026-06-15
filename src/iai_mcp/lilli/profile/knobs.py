@@ -86,7 +86,7 @@ PROFILE_KNOBS: dict[str, KnobSpec] = {
         "camouflaging_relaxation",
         1,
         0.0,
-        "Detect over-formal writing, gradually relax formality",
+        "Detect over-formal writing and gradually relax communication formality",
         "float_range:0.0..1.0",
         "AUTIST-13",
     ),
@@ -103,8 +103,8 @@ PROFILE_KNOBS: dict[str, KnobSpec] = {
         1,
         "minimal",
         (
-            "Session-start payload size: minimal=<=30 raw (lazy, default), "
-            "standard=Phase-1 eager (back-compat), deep=<=2000 (full)"
+            "Session-start payload size: minimal=eager-30 (lazy default), "
+            "standard=eager (full recent history), deep=full (<=2000 records)"
         ),
         "enum:minimal|standard|deep",
         "MCP-12",
@@ -259,14 +259,14 @@ def profile_set(
     if spec.phase == 2:
         return {
             "status": "error",
-            "reason": "deferred to a future release",
+            "reason": "not yet activated",
             "knob": knob,
             "requirement_id": spec.requirement_id,
         }
     if spec.phase == 3:
         return {
             "status": "error",
-            "reason": "deferred to a future release",
+            "reason": "not yet activated",
             "knob": knob,
             "requirement_id": spec.requirement_id,
         }

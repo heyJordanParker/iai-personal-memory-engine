@@ -32,7 +32,7 @@ def test_cli_crypto_status_shows_file_backend(tmp_path, monkeypatch, capsys):
     assert ".crypto.key" in out, f"status must include the file path; got:\n{out}"
     assert "600" in out, f"status must expose mode 0o600; got:\n{out}"
     assert "keyring" not in out_lower, (
-        f"status must NOT mention keyring (backend retired); got:\n{out}"
+        f"status must NOT mention keyring (backend retired in 07.10); got:\n{out}"
     )
 
 
@@ -108,7 +108,7 @@ def test_cli_migrate_to_3_dry_run_counts_plaintext_rows(tmp_path, monkeypatch, c
     monkeypatch.setenv("IAI_MCP_STORE", str(tmp_path))
     from iai_mcp.cli import cmd_migrate
     from iai_mcp.store import MemoryStore, RECORDS_TABLE
-    from iai_mcp.types import EMBED_DIM, MemoryRecord
+    from iai_mcp.types import EMBED_DIM
 
     store = MemoryStore()
     rid = uuid4()
@@ -236,7 +236,7 @@ def test_neural_map_bench_passes_after_encryption(tmp_path):
 
     min_p95 = best_of_n(_one_p95, n=3)
     assert min_p95 < D_SPEED_P95_MS, (
-        f"speed regression post-encryption: best-of-3 p95={min_p95:.1f} ms "
+        f"D-SPEED regression post-encryption: best-of-3 p95={min_p95:.1f} ms "
         f">= {D_SPEED_P95_MS} ms"
     )
 

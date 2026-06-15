@@ -18,7 +18,7 @@ import random
 import subprocess
 import sys
 import time
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
@@ -312,7 +312,7 @@ def _gather_env_metadata(store_dir: Path, seed_list: list[int]) -> dict[str, Any
         "iai_mcp_git_sha": sha,
         "iai_mcp_git_dirty": dirty,
         "lance_version": _pkg_version("lance"),
-        "hnswlib_version": _pkg_version("hnswlib"),
+        "lancedb_version": _pkg_version("lancedb"),
         "pyarrow_version": _pkg_version("pyarrow"),
         "sentence_transformers_version": _pkg_version("sentence-transformers"),
         "embedder_model": embedder_model,
@@ -375,7 +375,7 @@ def run_one_seed(
     from iai_mcp.lifecycle_event_log import LifecycleEventLog
     from iai_mcp.pipeline import recall_for_benchmark
     from iai_mcp.retrieve import build_runtime_graph
-    from iai_mcp.sleep_pipeline import SleepPipeline
+    from iai_mcp.lilli.cycle.sleep_pipeline import SleepPipeline
     from iai_mcp.store import MemoryStore, flush_record_buffer
     from iai_mcp.types import MemoryRecord
 
@@ -398,7 +398,7 @@ def run_one_seed(
             else:
                 os.environ[key] = prior
 
-    store = MemoryStore(path=store_dir_for_seed / "hippo")
+    store = MemoryStore(path=store_dir_for_seed / "lancedb")
     embedder = Embedder(model_key=embedder_key)
 
     _ = embedder.embed_batch(["warm-up " + str(i) for i in range(WARMUP_PASSES)])

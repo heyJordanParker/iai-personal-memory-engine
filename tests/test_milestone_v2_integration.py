@@ -3,7 +3,6 @@ from __future__ import annotations
 import asyncio
 import json
 import os
-import shutil
 from pathlib import Path
 
 import pytest
@@ -22,7 +21,6 @@ from iai_mcp.lifecycle_lock import (
 )
 from iai_mcp.lifecycle_state import LifecycleState, load_state
 from iai_mcp.s2_coordinator import S2Coordinator
-from iai_mcp.sleep_pipeline import SleepPipelineResult, SleepStep
 
 
 def _dispatch(lsm: LifecycleStateMachine, event: LifecycleEvent, **payload) -> LifecycleState:

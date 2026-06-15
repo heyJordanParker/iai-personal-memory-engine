@@ -106,7 +106,7 @@ def _run_claude_mem_adapter(
     )
 
 
-SCRIPT_NAME = "D5-08-v1"
+SCRIPT_NAME = "session-cost-v1"
 
 _SCRIPT: list[dict] = [
     {
@@ -127,7 +127,7 @@ _SCRIPT: list[dict] = [
     },
     {
         "kind": "save",
-        "input": "Decision locked: use cachetools TTLCache for the recall LRU",
+        "input": "Decision locked: use cachetools TTLCache for the session cache LRU",
     },
     {
         "kind": "introspect",
@@ -139,7 +139,7 @@ _SCRIPT: list[dict] = [
     },
     {
         "kind": "recall",
-        "input": "Alice said something about second-machine cross-validation",
+        "input": "alice said something about pressplay cross-validation",
     },
     {
         "kind": "reinforce",
@@ -287,10 +287,10 @@ def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(
         prog="bench.total_session_cost",
         description=(
-            "Total session cost bench. Fixed 10-turn representative script; "
-            "measures IAI-MCP token cost at wake_depth minimal|standard|deep "
-            "and optionally compares to supplied mempalace / claude-mem "
-            "reference totals."
+            "Total session cost bench. Fixed 10-turn "
+            "representative script; measures token cost "
+            "at wake_depth minimal|standard|deep and optionally compares "
+            "to supplied mempalace / claude-mem reference totals."
         ),
     )
     parser.add_argument(

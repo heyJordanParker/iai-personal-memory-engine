@@ -721,7 +721,11 @@ class HippoQuery:
             labels, distances = db._hnsw.knn_query(self._ann_vector, k=k_clamped)
 
         flat_labels: list[int] = labels[0].tolist()
-        flat_distances: list[float] = distances[0].tolist()
+        # Clamp cosine distance to its mathematical range — the BLAS backend
+        # can produce sub-epsilon negatives on Linux.
+        flat_distances: list[float] = [
+            max(0.0, min(2.0, float(d))) for d in distances[0]
+        ]
 
         if not flat_labels:
             return pd.DataFrame()

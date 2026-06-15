@@ -284,10 +284,10 @@ def test_5_concurrent_wrapper_cold_starts_yield_singleton(
 
     assert daemon_count == 1, (
         f"singleton invariant violated: {daemon_count} daemons bound to "
-        f"{sock_path} after 5 concurrent wrapper cold-starts. Contract: "
-        f"launchd handles the spawn-once; all wrappers join the same daemon. "
-        f"The spawn-fallback baseline reproduces 2-5 daemons via a TOCTOU "
-        f"race in bridge.ts."
+        f"{sock_path} after 5 concurrent wrapper cold-starts. "
+        f"contract: launchd handles the spawn-once; all wrappers join "
+        f"the same daemon. Pre-Phase-7.1 baseline reproduces 2-5 daemons "
+        f"via TOCTOU race in bridge.ts spawn-fallback."
     )
     assert binder_count <= 1, (
         f"lsof reports {binder_count} binders for {sock_path}; "
@@ -300,11 +300,3 @@ def test_5_concurrent_wrapper_cold_starts_yield_singleton(
         f"only {success_count}/5 wrappers received successful initialize "
         f"response. Responses: {init_responses}"
     )
-
-
-@pytest.mark.skip(
-    reason="manual baseline regression check; run only against the "
-    "spawn-fallback baseline to demonstrate the regression-trap behavior",
-)
-def test_pre_phase_7_1_baseline_fails():
-    pass

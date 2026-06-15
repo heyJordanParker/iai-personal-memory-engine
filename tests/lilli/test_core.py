@@ -160,17 +160,24 @@ def test_similarity_jaccard_empty() -> None:
 def test_lilli_package_no_forbidden_tokens() -> None:
     """No file under src/iai_mcp/lilli/ contains forbidden internal markers.
 
-        Forbidden tokens (must not appear in lilli/ source):
+    Two-stage guard:
+    1. Plain literal tokens the generic regex cannot express.
+    2. Generic plan/phase/decision-code regex with word boundaries so that
+       runtime registry keys like AUTIST-01 and MCP-12 do NOT trip it.
     """
-    forbidden = [
-        "Plan 46",
-        "Phase 46",
-        "D-46",
+    import re
+
+    # Specific tokens (literals the regex cannot express)
+    _PLAIN_TOKENS = [
         "LILLIHD-",
         "D-TEM",
         "CONN-",
         "MEM-0",
     ]
+    # Generic plan/phase/decision-code patterns
+    _PATTERNS = re.compile(
+        r"\bPlan\s+\d+\b|\bPhase\s+\d+\b|\bD-\d+\b"
+    )
     # __file__ is now tests/lilli/test_core.py; project root is three levels up
     lilli_root = (
         pathlib.Path(__file__).parent.parent.parent / "src" / "iai_mcp" / "lilli"
@@ -179,9 +186,13 @@ def test_lilli_package_no_forbidden_tokens() -> None:
     violations: list[str] = []
     for py_file in lilli_root.rglob("*.py"):
         text = py_file.read_text(encoding="utf-8")
-        for token in forbidden:
+        for token in _PLAIN_TOKENS:
             if token in text:
-                violations.append(f"{py_file}:{token!r}")
+                violations.append(f"{py_file}: plain token {token!r}")
+        if _PATTERNS.search(text):
+            for lineno, line in enumerate(text.splitlines(), start=1):
+                if _PATTERNS.search(line):
+                    violations.append(f"{py_file}:{lineno}: {line.rstrip()!r}")
     assert not violations, (
         "Forbidden tokens found in lilli/ source (public-repo-clean violation):\n"
         + "\n".join(violations)

@@ -30,6 +30,14 @@ DAEMON_WEDGE_KILL: str = "daemon_wedge_kill"
 DAEMON_MEMORY_PRESSURE_KILL: str = "daemon_memory_pressure_kill"
 DAEMON_WATCHDOG_NEEDS_OPERATOR: str = "daemon_watchdog_needs_operator"
 
+TELEMETRY_RGC_WORKER_SUCCESS: str = "rgc_worker_success"
+TELEMETRY_RGC_WORKER_JIT_WARMUP: str = "rgc_worker_jit_warmup"
+TELEMETRY_RGC_WORKER_TIMEOUT: str = "rgc_worker_timeout"
+TELEMETRY_RGC_WORKER_CRASH: str = "rgc_worker_crash"
+# Emitted from save() when the encoded snapshot exceeds 80% of MAX_CACHE_BYTES;
+# rate-limited to one event per generation window.
+TELEMETRY_RGC_SNAPSHOT_NEAR_LIMIT: str = "rgc_snapshot_near_limit"
+
 _event_buffer: dict[int, list[dict]] = {}
 
 _last_flush_at: dict[int, datetime] = {}

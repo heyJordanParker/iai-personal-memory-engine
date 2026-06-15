@@ -70,6 +70,13 @@ _PERSISTENT_GRAPH_LOCK = threading.Lock()
 
 
 def _get_persistent_graph():
+    """Module-level reusable graph instance.
+
+    No longer fed by the periodic rebuild path — the rebuild runs in a child
+    process and reclaims its own address space. Kept callable for
+    backward-compatibility with existing fixture-reset tests and any future
+    in-parent graph consumers.
+    """
     global _persistent_graph  # noqa: PLW0603
     if _persistent_graph is None:
         from iai_mcp.graph import MemoryGraph
@@ -77,7 +84,156 @@ def _get_persistent_graph():
     return _persistent_graph
 
 
+# Worker timeouts. The rebuild itself is a background sleep-time operation
+# and recall is served from the last-good snapshot throughout; the watchdog
+# exists to catch a hung worker, not a slow-but-progressing one. The
+# centrality + rich_club + community-detection compute scales super-linearly
+# with graph size, so we use a base allowance plus a per-1k-nodes ramp:
+#   timeout = base + per_1k * (active_records_count / 1000)
+# capped at WORKER_TIMEOUT_MAX_S. First spawn after daemon boot uses a
+# slightly larger base to absorb numba JIT cold-start. All reads and writes
+# of `_first_spawn_seen` happen under `_PERSISTENT_GRAPH_LOCK`, which
+# already serializes rebuilds — no new lock.
+_WORKER_TIMEOUT_BASE_S: float = 60.0
+_WORKER_TIMEOUT_FIRST_BASE_S: float = 120.0
+# Coefficient calibrated to the measured per-1k-nodes cost of
+# `MemoryGraph.centrality()` (Brandes betweenness, O(V*E)) on this hardware
+# plus `detect_communities` overhead. Capped at WORKER_TIMEOUT_MAX_S so a
+# truly hung worker is still caught in finite time.
+_WORKER_TIMEOUT_PER_1K_NODES_S: float = 35.0
+_WORKER_TIMEOUT_MAX_S: float = 3600.0
+_first_spawn_seen: bool = False
+
+
+class WorkerCrashedError(RuntimeError):
+    """Child worker exited with a non-zero exit code."""
+
+
+class WorkerTimeoutError(RuntimeError):
+    """Child worker did not produce a complete result within the timeout."""
+
+
+def _worker_entry_indirection(conn) -> None:
+    """Picklable spawn target.
+
+    The worker module is imported only inside the child after spawn, so the
+    parent process itself never loads the worker module until spawn time.
+    """
+    from iai_mcp.runtime_graph_cache_worker import _worker_entry
+    _worker_entry(conn)
+
+
+def _resolve_timeout(active_records_count: int = 0) -> float:
+    """Size-scaled watchdog timeout.
+
+    Base plus a per-1k-active-records ramp, capped at
+    `_WORKER_TIMEOUT_MAX_S`. First spawn after daemon boot uses a larger
+    base to absorb numba JIT cold-start.
+    """
+    base = _WORKER_TIMEOUT_FIRST_BASE_S if not _first_spawn_seen else _WORKER_TIMEOUT_BASE_S
+    ramp = _WORKER_TIMEOUT_PER_1K_NODES_S * (max(0, active_records_count) / 1000.0)
+    return min(base + ramp, _WORKER_TIMEOUT_MAX_S)
+
+
+def _terminate_worker(process) -> None:
+    """Idempotent terminate-then-kill of the worker process."""
+    try:
+        if process.is_alive():
+            process.terminate()
+            process.join(timeout=2.0)
+        if process.is_alive():
+            process.kill()
+            process.join(timeout=2.0)
+    except Exception:  # noqa: BLE001 -- worker cleanup must not raise
+        pass
+
+
+def _drain_worker_result(parent_conn, timeout: float) -> dict:
+    """Drain the chunked compact result envelope into a parent-side dict.
+
+    Raises WorkerTimeoutError if the worker has not emitted the `done`
+    terminator within `timeout` seconds. Any `error` envelope is converted
+    into a RuntimeError so the caller can dispose.
+    """
+    import time
+    from uuid import UUID
+
+    import numpy as np
+
+    deadline = time.perf_counter() + timeout
+    community_table_uuids: list = []
+    community_centroids: dict = {}
+    assignments: dict = {}
+    backend: str | None = None
+    top_communities: list = []
+    mid_regions: dict = {}
+    rich_club: list = []
+    max_degree: int = 0
+    done = False
+
+    while not done:
+        remaining = deadline - time.perf_counter()
+        if remaining <= 0:
+            raise WorkerTimeoutError(
+                f"worker did not complete within {timeout:.1f}s"
+            )
+        if not parent_conn.poll(min(remaining, 1.0)):
+            continue
+        envelope = parent_conn.recv()
+        kind, payload = envelope
+        if kind == "community_table":
+            for comm_bytes, centroid_bytes in payload:
+                cu = UUID(bytes=comm_bytes)
+                community_table_uuids.append(cu)
+                if centroid_bytes is None:
+                    community_centroids[cu] = []
+                else:
+                    community_centroids[cu] = np.frombuffer(
+                        centroid_bytes, dtype=np.float32
+                    ).tolist()
+        elif kind == "assign":
+            for node_bytes, comm_idx in payload:
+                assignments[UUID(bytes=node_bytes)] = int(comm_idx)
+        elif kind == "assign_end":
+            continue
+        elif kind == "backend":
+            backend = str(payload)
+        elif kind == "top_communities":
+            top_communities = [UUID(bytes=b) for b in payload]
+        elif kind == "mid_regions":
+            for comm_bytes, member_bytes_list in payload:
+                mid_regions[UUID(bytes=comm_bytes)] = [
+                    UUID(bytes=mb) for mb in member_bytes_list
+                ]
+        elif kind == "rich_club":
+            rich_club = [UUID(bytes=b) for b in payload]
+        elif kind == "max_degree":
+            max_degree = int(payload)
+        elif kind == "done":
+            done = True
+        elif kind == "error":
+            raise RuntimeError(f"worker reported error: {payload!r}")
+        else:
+            raise RuntimeError(f"worker emitted unknown envelope kind: {kind!r}")
+
+    node_to_community: dict = {}
+    for node_uuid, idx in assignments.items():
+        node_to_community[node_uuid] = community_table_uuids[idx]
+
+    return {
+        "node_to_community": node_to_community,
+        "community_centroids": community_centroids,
+        "backend": backend if backend is not None else "flat",
+        "top_communities": top_communities,
+        "mid_regions": mid_regions,
+        "rich_club": rich_club,
+        "max_degree": max_degree,
+    }
+
+
 MAX_CACHE_BYTES: int = 10 * 1024 * 1024
+_SNAPSHOT_NEAR_LIMIT_FRACTION: float = 0.80
+_snapshot_near_limit_last_gen: int = -1
 
 
 def _cache_path(store: Any) -> Path:
@@ -585,6 +741,46 @@ def load_recall_structural(store: Any) -> "tuple":
 _rebuild_timestamp_override: str = ""
 
 
+def _maybe_emit_snapshot_near_limit(store: Any, estimated_bytes: int) -> None:
+    """One-shot per-generation telemetry when the snapshot is about to degrade.
+
+    Rate-limited to one emission per `_GEN_LOCK` window so the event remains
+    informative even when many saves fire in quick succession.
+    """
+    global _snapshot_near_limit_last_gen  # noqa: PLW0603
+    threshold = int(MAX_CACHE_BYTES * _SNAPSHOT_NEAR_LIMIT_FRACTION)
+    if estimated_bytes < threshold:
+        return
+    with _GEN_LOCK:
+        current_gen = _current_generation
+        if _snapshot_near_limit_last_gen == current_gen:
+            return
+        _snapshot_near_limit_last_gen = current_gen
+    try:
+        from iai_mcp.events import (
+            TELEMETRY_RGC_SNAPSHOT_NEAR_LIMIT,
+            emit_best_effort,
+        )
+        from iai_mcp.store import MemoryStore
+
+        # Guard against test doubles that look like a store but cannot supply
+        # the encryption key the events writer needs.
+        if not isinstance(store, MemoryStore):
+            return
+        emit_best_effort(
+            store,
+            TELEMETRY_RGC_SNAPSHOT_NEAR_LIMIT,
+            {
+                "estimated_bytes": int(estimated_bytes),
+                "max_cache_bytes": int(MAX_CACHE_BYTES),
+                "fraction": round(estimated_bytes / max(MAX_CACHE_BYTES, 1), 3),
+            },
+            severity="info",
+        )
+    except Exception:  # noqa: BLE001 -- telemetry must never break save
+        pass
+
+
 def save(
     store: Any,
     assignment: Any,
@@ -624,7 +820,9 @@ def save(
         "rebuild_timestamp": _rebuild_timestamp_override or "",
     }
 
-    if _estimate_serialised_bytes(data) > MAX_CACHE_BYTES:
+    estimated_bytes = _estimate_serialised_bytes(data)
+    _maybe_emit_snapshot_near_limit(store, estimated_bytes)
+    if estimated_bytes > MAX_CACHE_BYTES:
         data["node_payload"] = {}
     if _estimate_serialised_bytes(data) > MAX_CACHE_BYTES:
         if isinstance(data.get("assignment"), dict):
@@ -697,13 +895,29 @@ def invalidate(store: Any) -> None:
 
 
 def _rebuild_and_save_rgc(store: Any, *, force: bool = False) -> dict:
-    from iai_mcp.community import detect_communities
-    from iai_mcp.richclub import rich_club_nodes
+    import multiprocessing
+    import time
+
+    from iai_mcp.community import CommunityAssignment
+    from iai_mcp.events import (
+        TELEMETRY_RGC_WORKER_CRASH,
+        TELEMETRY_RGC_WORKER_SUCCESS,
+        TELEMETRY_RGC_WORKER_TIMEOUT,
+        emit_best_effort,
+    )
+    from iai_mcp.runtime_graph_cache_ro_export import (
+        iter_edges_chunks,
+        iter_records_chunks,
+        open_ro_connection,
+        read_transaction,
+    )
+
+    global _first_spawn_seen  # noqa: PLW0603
 
     with _PERSISTENT_GRAPH_LOCK:
         if not force:
             # Skip the rebuild (and its allocation) only when the cached snapshot
-            # is still usable for recall. The read path's own structural source is
+            # is still usable for recall. The read path's structural source is
             # the authoritative signal: warm iff overlay/normal, cold otherwise.
             # It already folds in no-snapshot / parity / epoch / generation==0 /
             # age+dirty fuse. The dirty counter is a separate write-volume signal,
@@ -722,69 +936,163 @@ def _rebuild_and_save_rgc(store: Any, *, force: bool = False) -> dict:
                     "generation": get_current_generation(),
                 }
 
-        graph = _get_persistent_graph()
-
+        # Estimate the dataset size up-front so the watchdog timeout can be
+        # scaled to the workload. `active_records_count` is the cheap
+        # COUNT(*) under the same predicate used by the streaming SELECT.
         try:
-            all_records = list(store.all_records())
-        except Exception as exc:  # noqa: BLE001
-            logger.warning("_rebuild_and_save_rgc: all_records failed: %s", exc)
-            raise
+            est_node_count = int(store.active_records_count())
+        except Exception:  # noqa: BLE001
+            est_node_count = 0
 
-        nodes: list = []
-        for rec in all_records:
+        # Spawn the worker. Spawn-context (not fork) so the child re-imports
+        # cleanly on macOS and Linux; the child closes its end after start so
+        # the parent does not hold a half-of-pipe alive on crash detection.
+        first_spawn_flag = not _first_spawn_seen
+        timeout_s = _resolve_timeout(est_node_count)
+        ctx = multiprocessing.get_context("spawn")
+        parent_conn, child_conn = ctx.Pipe(duplex=True)
+        process = ctx.Process(
+            target=_worker_entry_indirection,
+            args=(child_conn,),
+            daemon=True,
+        )
+        process.start()
+        child_conn.close()
+
+        db_path = store.db._hippo_dir / "brain.sqlite3"
+        ro_conn = None
+        node_count = 0
+        t0 = time.perf_counter()
+        try:
+            # Stream the projection. The dedicated read-only connection means
+            # the shared write lock is never held during streaming.
+            ro_conn = open_ro_connection(db_path)
             try:
-                nodes.append((
-                    rec.id,
-                    None,
-                    list(rec.embedding),
-                    {
-                        "embedding": list(rec.embedding),
-                        "surface": rec.literal_surface,
-                        "centrality": float(rec.centrality),
-                        "tier": rec.tier,
-                        "pinned": bool(rec.pinned),
-                        "tags": list(getattr(rec, "tags", []) or []),
-                        "language": str(getattr(rec, "language", "en") or "en"),
-                    },
-                ))
+                with read_transaction(ro_conn):
+                    for chunk in iter_records_chunks(ro_conn):
+                        parent_conn.send(("nodes", chunk))
+                        node_count += len(chunk)
+                    parent_conn.send(("nodes_end", None))
+                    for chunk in iter_edges_chunks(ro_conn):
+                        parent_conn.send(("edges", chunk))
+                    parent_conn.send(("edges_end", None))
+            finally:
+                try:
+                    ro_conn.close()
+                except Exception:  # noqa: BLE001
+                    pass
+                ro_conn = None
+
+            # Receive the compact result.
+            result = _drain_worker_result(parent_conn, timeout=timeout_s)
+
+            process.join(timeout=5.0)
+            if process.exitcode != 0:
+                raise WorkerCrashedError(
+                    f"worker exited with code {process.exitcode}"
+                )
+
+            # Reassemble parent-side.
+            assignment = CommunityAssignment(
+                node_to_community=result["node_to_community"],
+                community_centroids=result["community_centroids"],
+                modularity=0.0,
+                backend=result["backend"],
+                top_communities=result["top_communities"],
+                mid_regions=result["mid_regions"],
+                lineage_report=None,
+            )
+            rich_club = result["rich_club"]
+            max_degree = int(result["max_degree"])
+
+            saved = save_with_generation(
+                store, assignment, rich_club, max_degree=max_degree
+            )
+
+            duration_s = time.perf_counter() - t0
+            _first_spawn_seen = True
+
+            emit_best_effort(
+                store,
+                TELEMETRY_RGC_WORKER_SUCCESS,
+                {
+                    "duration_s": round(duration_s, 3),
+                    "node_count": int(node_count),
+                    "max_degree": int(max_degree),
+                    "first_spawn": first_spawn_flag,
+                },
+            )
+            return {
+                "rebuilt": True,
+                "saved": saved,
+                "node_count": int(node_count),
+                "generation": get_current_generation(),
+            }
+
+        except WorkerTimeoutError as exc:
+            _terminate_worker(process)
+            emit_best_effort(
+                store,
+                TELEMETRY_RGC_WORKER_TIMEOUT,
+                {
+                    "first_spawn": first_spawn_flag,
+                    "timeout_s": timeout_s,
+                    "node_count": int(node_count),
+                },
+                severity="warn",
+            )
+            return {
+                "rebuilt": False,
+                "error": str(exc)[:200],
+                "node_count": int(node_count),
+                "generation": get_current_generation(),
+            }
+        except WorkerCrashedError as exc:
+            _terminate_worker(process)
+            emit_best_effort(
+                store,
+                TELEMETRY_RGC_WORKER_CRASH,
+                {
+                    "exitcode": getattr(process, "exitcode", None),
+                    "reason": "nonzero_exit",
+                    "first_spawn": first_spawn_flag,
+                },
+                severity="warn",
+            )
+            return {
+                "rebuilt": False,
+                "error": str(exc)[:200],
+                "node_count": int(node_count),
+                "generation": get_current_generation(),
+            }
+        except (BrokenPipeError, EOFError) as exc:
+            reason = "broken_pipe" if isinstance(exc, BrokenPipeError) else "pipe_eof"
+            _terminate_worker(process)
+            emit_best_effort(
+                store,
+                TELEMETRY_RGC_WORKER_CRASH,
+                {
+                    "exitcode": getattr(process, "exitcode", None) or "unknown",
+                    "reason": reason,
+                    "first_spawn": first_spawn_flag,
+                },
+                severity="warn",
+            )
+            return {
+                "rebuilt": False,
+                "error": "worker_disconnected",
+                "node_count": int(node_count),
+                "generation": get_current_generation(),
+            }
+        finally:
+            try:
+                parent_conn.close()
             except Exception:  # noqa: BLE001
                 pass
-
-        edges: list = []
-        try:
-            edges_df = store.db.open_table("edges").to_pandas()
-            if not edges_df.empty:
-                from uuid import UUID as _UUID
-                for _, row in edges_df.iterrows():
-                    try:
-                        src = _UUID(str(row["src"]))
-                        dst = _UUID(str(row["dst"]))
-                        w = float(row.get("weight", 1.0) or 1.0)
-                        edges.append((src, dst, w, "hebbian"))
-                    except Exception:  # noqa: BLE001
-                        pass
-        except Exception as exc:  # noqa: BLE001
-            logger.debug("_rebuild_and_save_rgc: edge load failed: %s", exc)
-
-        graph.clear_and_rebuild(nodes, edges)
-
-        assignment = detect_communities(graph, prior_mode="cold")
-        rc = rich_club_nodes(graph)
-
-        max_degree = 0
-        try:
-            for _nid, deg in graph.degrees():
-                if deg > max_degree:
-                    max_degree = deg
-        except Exception:  # noqa: BLE001
-            pass
-
-        saved = save_with_generation(store, assignment, rc, max_degree=max_degree)
-
-        node_count = graph.node_count()
-        return {
-            "rebuilt": True,
-            "saved": saved,
-            "node_count": int(node_count),
-            "generation": get_current_generation(),
-        }
+            if ro_conn is not None:
+                try:
+                    ro_conn.close()
+                except Exception:  # noqa: BLE001
+                    pass
+            if process.is_alive():
+                _terminate_worker(process)

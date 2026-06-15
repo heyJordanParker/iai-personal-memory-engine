@@ -10,10 +10,9 @@ from iai_mcp.daemon import DmnConfig, _load_dmn_config
 from iai_mcp.dmn_reflection import MetaAnalyst, ReflectionAgent
 from iai_mcp.events import query_events, write_event
 from iai_mcp.lifecycle_state import default_state, save_state
-from iai_mcp.sleep_pipeline import SleepPipeline
+from iai_mcp.lilli.cycle.sleep_pipeline import SleepPipeline
 from iai_mcp.store import MemoryStore
 from iai_mcp.types import MemoryRecord
-
 
 @pytest.fixture(autouse=True)
 def _isolate_iai_dmn(
@@ -28,7 +27,6 @@ def _isolate_iai_dmn(
         "IAI_MCP_DMN_DRY_RUN",
     ):
         monkeypatch.delenv(var, raising=False)
-
 
 def _make_record(
     *,
@@ -61,14 +59,12 @@ def _make_record(
         tags=["t"],
     )
 
-
 def _make_store(tmp_path: Path) -> MemoryStore:
     return MemoryStore(
         path=str(tmp_path / "iai-mcp-store"),
         user_id="alice",
         read_consistency_interval=timedelta(seconds=0),
     )
-
 
 def _seed_records_for_communities(
     store: MemoryStore,
@@ -88,7 +84,6 @@ def _seed_records_for_communities(
         store.insert(rec)
         ids.append(rec.id)
     return ids
-
 
 def test_reflection_synthesize_returns_semantic_record(
     tmp_path: Path,
@@ -152,7 +147,6 @@ def test_reflection_synthesize_returns_semantic_record(
         "next REM consolidation re-embeds"
     )
 
-
 def test_meta_analyst_snapshot_counts_correct(tmp_path: Path) -> None:
     store = _make_store(tmp_path)
 
@@ -164,7 +158,7 @@ def test_meta_analyst_snapshot_counts_correct(tmp_path: Path) -> None:
         write_event(
             store,
             "sleep_step_completed",
-            {"step": "COMPACT_RECORDS"},
+            {"step": "HIPPO_CLEANUP"},
         )
     write_event(
         store,
@@ -190,7 +184,7 @@ def test_meta_analyst_snapshot_counts_correct(tmp_path: Path) -> None:
         f"capture_count mismatch: expected 3, got {snap['capture_count']}"
     )
     assert snap["sleep_cycles_count"] == 2, (
-        f"sleep_cycles_count mismatch (only COMPACT_RECORDS should "
+        f"sleep_cycles_count mismatch (only HIPPO_CLEANUP should "
         f"count): expected 2, got {snap['sleep_cycles_count']}"
     )
     assert snap["breach_count"] == 1, (
@@ -211,7 +205,6 @@ def test_meta_analyst_snapshot_counts_correct(tmp_path: Path) -> None:
     assert parsed.tzinfo is not None, (
         f"generated_at must be tz-aware ISO; got {snap['generated_at']!r}"
     )
-
 
 def test_dmn_reflection_step_runs_end_to_end(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
@@ -292,7 +285,6 @@ def test_dmn_reflection_step_runs_end_to_end(
         f"got {body!r}"
     )
 
-
 def test_dmn_dry_run_no_record_insert(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -344,7 +336,6 @@ def test_dmn_dry_run_no_record_insert(
         f"system_health_report must emit even under dry_run=true; "
         f"got {len(health_events)}"
     )
-
 
 def test_meta_analyst_disabled_skip_health_event(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
@@ -399,7 +390,6 @@ def test_meta_analyst_disabled_skip_health_event(
         f"system_health_report emits; got {len(health_events)}"
     )
 
-
 @pytest.mark.parametrize(
     "env_var, bad_value",
     [
@@ -425,14 +415,12 @@ def test_env_var_fail_loud_parametrized(
         f"got {excinfo.value!r}"
     )
 
-
 def test_dmn_config_defaults_under_pytest() -> None:
     cfg = _load_dmn_config()
     assert isinstance(cfg, DmnConfig)
     assert cfg.reflection_window_hours == 24
     assert cfg.meta_analyst_enabled is True
     assert cfg.dry_run is True
-
 
 def test_reflection_does_not_re_ingest_prior_reflections(
     tmp_path: Path,

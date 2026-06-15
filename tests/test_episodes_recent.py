@@ -2,14 +2,13 @@ from __future__ import annotations
 
 import json
 import platform
-from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 import pytest
 
 from iai_mcp.capture import capture_turn
 from iai_mcp.core import dispatch
-from tests.conftest_recall import make_tmp_store
+from tests._helpers import make_tmp_store
 
 
 def _write_live_event(
@@ -282,7 +281,6 @@ def test_pending_malformed_role_dropped(iai_home_60):
 
     store = make_tmp_store(iai_home_60)
 
-    from iai_mcp.capture import _LIVE_ACTIVE_RE
     deferred = iai_home_60 / ".iai-mcp" / ".deferred-captures"
     deferred.mkdir(parents=True, exist_ok=True)
     path = deferred / f"{session}.live.jsonl"

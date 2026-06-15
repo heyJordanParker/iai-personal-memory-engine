@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import json
 
-import pytest
 
 from iai_mcp.capture import _parse_transcript_line
 
@@ -12,11 +11,11 @@ def _user_line(text: str) -> str:
 
 
 def test_command_message_dropped():
-    line = _user_line("<command-message>some-command</command-message>")
+    line = _user_line("<command-message>gsd-map-codebase</command-message>")
     result = _parse_transcript_line(line)
     assert result is None, (
         f"command-message line should be filtered (got {result!r}); "
-        "the noise filter must drop this line"
+        "_parse_transcript_line must apply the noise filter"
     )
 
 
@@ -25,7 +24,7 @@ def test_skill_injection_dropped():
     result = _parse_transcript_line(line)
     assert result is None, (
         f"skill-injection line should be filtered (got {result!r}); "
-        "the noise filter must drop this line"
+        "_parse_transcript_line must apply the noise filter"
     )
 
 
@@ -34,7 +33,7 @@ def test_task_notification_dropped():
     result = _parse_transcript_line(line)
     assert result is None, (
         f"task-notification line should be filtered (got {result!r}); "
-        "the noise filter must drop this line"
+        "_parse_transcript_line must apply the noise filter"
     )
 
 
@@ -43,7 +42,7 @@ def test_interrupted_dropped():
     result = _parse_transcript_line(line)
     assert result is None, (
         f"interrupted marker should be filtered (got {result!r}); "
-        "the noise filter must drop this line"
+        "_parse_transcript_line must apply the noise filter"
     )
 
 
@@ -55,7 +54,7 @@ def test_genuine_line_preserved():
     role, text, *_ = result
     assert role == "user"
     assert text == genuine_text, (
-        f"MEM-01 violation: text was altered (got {text!r}, expected {genuine_text!r})"
+        f"verbatim text was altered (got {text!r}, expected {genuine_text!r})"
     )
 
 
@@ -65,7 +64,7 @@ def test_genuine_line_quoting_marker_preserved():
     result = _parse_transcript_line(line)
     assert result is not None, (
         "genuine user line containing a noise substring must not be filtered; "
-        "MEM-01 requires byte-identical storage of real user turns"
+        "byte-identical storage of real user turns is required"
     )
     role, text, *_ = result
     assert role == "user"

@@ -14,7 +14,7 @@ from iai_mcp.store import MemoryStore
 from iai_mcp.types import EMBED_DIM, MemoryRecord
 
 
-_TEST_PASSPHRASE = "iai-mcp-test-passphrase-2026-04-30-phase-07.10"
+_TEST_PASSPHRASE = "iai-mcp-test-passphrase-2026-04-30"
 
 K_SEEDS = 5
 _CHILD_BARRIER_TIMEOUT_S = 60.0
@@ -262,7 +262,7 @@ def _run_consolidation_clean(store: MemoryStore, tmp_root: Path) -> None:
     import iai_mcp.claude_cli as _cc
     import iai_mcp.reconsolidation_critic as _rc
     from iai_mcp.lifecycle_event_log import LifecycleEventLog
-    from iai_mcp.sleep_pipeline import SleepPipeline
+    from iai_mcp.lilli.cycle.sleep_pipeline import SleepPipeline
 
     def _raise_remote(*_a, **_k):  # pragma: no cover - must never be reached
         raise AssertionError("remote subprocess must not be invoked under test")

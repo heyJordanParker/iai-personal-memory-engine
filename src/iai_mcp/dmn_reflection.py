@@ -155,7 +155,7 @@ class MetaAnalyst:
             elif kind == "sleep_step_completed":
                 data = ev.get("data") or {}
                 step_name = data.get("step")
-                if step_name == "COMPACT_RECORDS":
+                if step_name == "HIPPO_CLEANUP":
                     sleep_cycles_count += 1
             elif kind == "essential_variable_breach":
                 breach_count += 1

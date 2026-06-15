@@ -25,6 +25,7 @@ def test_neural_map_bench_returns_stage_timings(tmp_path):
         assert expected in stages
 
 
+@pytest.mark.perf
 def test_neural_map_bench_reports_passed_flag(tmp_path, monkeypatch):
     from bench.neural_map import run_neural_map_bench, D_SPEED_P95_MS
 
@@ -51,11 +52,12 @@ def test_neural_map_bench_reports_passed_flag(tmp_path, monkeypatch):
 
     min_p95 = best_of_n(_one_p95, n=3)
     assert min_p95 < D_SPEED_P95_MS, (
-        f"perf violated: best-of-3 p95={min_p95:.2f}ms >= {D_SPEED_P95_MS}ms "
+        f"D-SPEED violated: best-of-3 p95={min_p95:.2f}ms >= {D_SPEED_P95_MS}ms "
         f"at N=100."
     )
 
 
+@pytest.mark.perf
 def test_neural_map_main_exits_zero_at_n100(tmp_path, monkeypatch, capsys):
     from bench import neural_map
 

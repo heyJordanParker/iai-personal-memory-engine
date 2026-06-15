@@ -50,10 +50,15 @@
         <integer>8192</integer>
     </dict>
 
+    <!--
+      Log path matches the editable-install template
+      (scripts/com.iai-mcp.daemon.plist.template) so logs land in one place
+      regardless of which install path rendered the LaunchAgent.
+    -->
     <key>StandardOutPath</key>
-    <string>/Users/{USERNAME}/Library/Logs/iai-mcp-daemon.stdout.log</string>
+    <string>/Users/{USERNAME}/.iai-mcp/logs/launchd-stdout.log</string>
     <key>StandardErrorPath</key>
-    <string>/Users/{USERNAME}/Library/Logs/iai-mcp-daemon.stderr.log</string>
+    <string>/Users/{USERNAME}/.iai-mcp/logs/launchd-stderr.log</string>
 
     <key>WorkingDirectory</key>
     <string>/Users/{USERNAME}</string>
@@ -75,6 +80,14 @@
         <string>/Users/{USERNAME}</string>
         <key>LANG</key>
         <string>en_US.UTF-8</string>
+        <!--
+          Rendered by `iai-mcp daemon install` (the pip-installed operator
+          path). The managed marker keeps this plist consistent with the
+          editable-install template so a running daemon reports launchd
+          ownership the same way under either install path.
+        -->
+        <key>IAI_MCP_LAUNCHD_MANAGED</key>
+        <string>1</string>
         <key>LIFECYCLE_DROWSY_AFTER_SEC</key>
         <string>300</string>
         <key>LIFECYCLE_SLEEP_HEARTBEAT_IDLE_SEC</key>

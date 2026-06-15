@@ -7,10 +7,9 @@ import pytest
 
 from iai_mcp.daemon import _load_erasure_config
 from iai_mcp.events import query_events
-from iai_mcp.sleep_pipeline import SleepPipeline
+from iai_mcp.lilli.cycle.sleep_pipeline import SleepPipeline
 from iai_mcp.store import RECORDS_TABLE, MemoryStore
 from iai_mcp.types import MemoryRecord
-
 
 FROZEN_NOW = datetime(2026, 5, 16, 12, 0, tzinfo=timezone.utc)
 
@@ -18,7 +17,6 @@ HIGH_UTILITY_N = 5
 LOW_UTILITY_N = 10
 PROTECTED_N = 4
 TOTAL_N = HIGH_UTILITY_N + LOW_UTILITY_N + PROTECTED_N
-
 
 def _make_record(
     *,
@@ -51,7 +49,6 @@ def _make_record(
         updated_at=created_at,
         language="en",
     )
-
 
 def _build_three_cohort_store(
     store: MemoryStore, now: datetime,
@@ -116,26 +113,24 @@ def _build_three_cohort_store(
 
     return cohort_ids
 
-
 @pytest.fixture
 def iai_home(tmp_path, monkeypatch):
     monkeypatch.setenv("HOME", str(tmp_path))
     monkeypatch.setenv("PYTHON_KEYRING_BACKEND", "keyring.backends.fail.Keyring")
     monkeypatch.setenv("IAI_MCP_CRYPTO_PASSPHRASE", "test-phase11-passphrase")
-    monkeypatch.setenv("IAI_MCP_STORE", str(tmp_path / ".iai-mcp" / "hippo"))
+    monkeypatch.setenv("IAI_MCP_STORE", str(tmp_path / ".iai-mcp" / "lancedb"))
     import keyring.core
 
     keyring.core._keyring_backend = None
     yield tmp_path
     keyring.core._keyring_backend = None
 
-
 @pytest.fixture
 def pipeline(iai_home, tmp_path, monkeypatch):
     monkeypatch.setenv("IAI_MCP_ERASURE_DRY_RUN", "false")
 
     monkeypatch.setattr(
-        "iai_mcp.sleep_pipeline._utc_now", lambda: FROZEN_NOW,
+        "iai_mcp.lilli.cycle.sleep_pipeline._utc_now", lambda: FROZEN_NOW,
     )
 
     store = MemoryStore()
@@ -153,20 +148,17 @@ def pipeline(iai_home, tmp_path, monkeypatch):
     )
     return pipe, store, cohort_ids
 
-
 def _row_for(df, rid: UUID) -> dict | None:
     sub = df[df["id"] == str(rid)]
     if sub.empty:
         return None
     return sub.iloc[0].to_dict()
 
-
 def _is_tombstoned(row: dict) -> bool:
     import pandas as pd
 
     val = row.get("tombstoned_at")
     return val is not None and not pd.isna(val)
-
 
 def test_low_utility_cohort_tombstoned_after_one_pass(pipeline):
     pipe, store, cohort_ids = pipeline
@@ -212,7 +204,6 @@ def test_low_utility_cohort_tombstoned_after_one_pass(pipeline):
             f"pinned={row.get('pinned')} never_decay={row.get('never_decay')}"
         )
 
-
 def test_protected_cohort_survives_multiple_passes(pipeline):
     pipe, store, cohort_ids = pipeline
 
@@ -233,7 +224,6 @@ def test_protected_cohort_survives_multiple_passes(pipeline):
                 f"pinned={row.get('pinned')} never_decay={row.get('never_decay')}"
             )
 
-
 def test_aged_tombstones_dropped_after_second_pass(pipeline, monkeypatch):
     pipe, store, cohort_ids = pipeline
 
@@ -252,7 +242,7 @@ def test_aged_tombstones_dropped_after_second_pass(pipeline, monkeypatch):
         "iai_mcp.lilli.cycle.sleep_pipeline._utc_now", lambda: fast_forward,
     )
 
-    ok2, payload2 = pipe._step_optimize_lance(None)
+    ok2, payload2 = pipe._step_optimize_hippo(None)
     assert ok2 is True, payload2
     assert payload2.get("count_dropped_by_erasure") == LOW_UTILITY_N, (
         f"expected {LOW_UTILITY_N} drops, got {payload2}"
@@ -283,13 +273,12 @@ def test_aged_tombstones_dropped_after_second_pass(pipeline, monkeypatch):
         f"got {df.shape[0]}"
     )
 
-
 def test_dry_run_mode_emits_event_no_mutation(
     iai_home, tmp_path, monkeypatch,
 ):
     monkeypatch.setenv("IAI_MCP_ERASURE_DRY_RUN", "true")
     monkeypatch.setattr(
-        "iai_mcp.sleep_pipeline._utc_now", lambda: FROZEN_NOW,
+        "iai_mcp.lilli.cycle.sleep_pipeline._utc_now", lambda: FROZEN_NOW,
     )
 
     store = MemoryStore()
@@ -328,7 +317,6 @@ def test_dry_run_mode_emits_event_no_mutation(
     assert body.get("dry_run_mode") is True, body
     assert body.get("count_quarantined") == LOW_UTILITY_N, body
     assert len(cohort_ids["low_utility"]) == LOW_UTILITY_N
-
 
 def test_erasure_event_body_shape_and_uniqueness(pipeline):
     pipe, store, _ = pipeline

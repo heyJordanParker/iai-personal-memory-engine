@@ -1,10 +1,9 @@
 from __future__ import annotations
 
-import pytest
 
 from iai_mcp.capture import capture_turn
 from iai_mcp.core import dispatch
-from tests.conftest_recall import make_tmp_store
+from tests._helpers import make_tmp_store
 
 
 def test_cross_session_recency_query(tmp_path):

@@ -52,6 +52,13 @@
   <key>WorkingDirectory</key>
   <string>{HOME}</string>
 
+  <!--
+    Rendered by the editable-install path (scripts/install.sh).
+    IAI_MCP_LAUNCHD_MANAGED=1 signals launchd ownership so the running
+    process can tell it was started by the LaunchAgent rather than by hand;
+    the operator-install plist carries the same marker and log path so both
+    render targets stay consistent.
+  -->
   <key>EnvironmentVariables</key>
   <dict>
     <key>PATH</key>

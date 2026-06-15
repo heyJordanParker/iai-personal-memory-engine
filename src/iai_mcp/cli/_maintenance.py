@@ -464,7 +464,7 @@ def cmd_maintenance_sleep_cycle(args: argparse.Namespace) -> int:
 
     from iai_mcp.lifecycle_event_log import LifecycleEventLog
     from iai_mcp.lifecycle_state import LIFECYCLE_STATE_PATH
-    from iai_mcp.sleep_pipeline import SleepPipeline
+    from iai_mcp.lilli.cycle.sleep_pipeline import SleepPipeline
     from iai_mcp.store import MemoryStore
 
     if getattr(args, "store_path", None) is not None:

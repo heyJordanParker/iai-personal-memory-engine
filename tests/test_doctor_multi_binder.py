@@ -1,18 +1,21 @@
 from __future__ import annotations
 
-import argparse
 import multiprocessing as mp
 import os
 import platform
-import signal
 import socket
 import subprocess
-import sys
 import time
 from pathlib import Path
 
-import psutil
 import pytest
+
+
+# No integration test for two daemons binding one store: the single-owner
+# lifecycle lock makes that state impossible to construct (the second daemon
+# fails the lock and exits before it can bind). The detection path is covered
+# by the _extract_binder_pids and check_g unit tests below, which fabricate
+# lsof output and bind real sockets directly without spawning two daemons.
 
 
 pytestmark = pytest.mark.skipif(
@@ -67,6 +70,30 @@ def test_extract_binder_pids_handles_empty_output():
     assert _extract_binder_pids("", target) == set()
     assert _extract_binder_pids("\n\n\n", target) == set()
     assert _extract_binder_pids("p123\nXgarbage\np\n", target) == set()
+
+
+def test_extract_binder_pids_ss_parses_ss_output():
+    from iai_mcp.doctor import _extract_binder_pids_ss
+
+    target = Path("/tmp/iai-test/d.sock")
+    ss_output = "\n".join([
+        f"u_str LISTEN 0 5 {target} 12345 * 0 users:((\"python3\",pid=12345,fd=3))",
+        f"u_str LISTEN 0 5 {target} 67890 * 0 users:((\"python3\",pid=67890,fd=4))",
+        "u_str LISTEN 0 5 /tmp/other.sock 99999 * 0 users:((\"nginx\",pid=99999,fd=8))",
+    ])
+
+    pids = _extract_binder_pids_ss(ss_output, target)
+
+    assert pids == {12345, 67890}, f"expected {{12345, 67890}}, got {pids}"
+
+
+def test_extract_binder_pids_ss_handles_empty_output():
+    from iai_mcp.doctor import _extract_binder_pids_ss
+
+    target = Path("/tmp/anywhere.sock")
+    assert _extract_binder_pids_ss("", target) == set()
+    assert _extract_binder_pids_ss("\n\n\n", target) == set()
+    assert _extract_binder_pids_ss("u_str LISTEN 0 5 /tmp/other.sock 1 * 0 users:((\"x\",pid=1,fd=0))", target) == set()
 
 
 @pytest.fixture
@@ -144,7 +171,11 @@ def test_check_g_single_binder_passes(short_socket_path):
 
 
 def test_check_g_two_binders_fails(short_socket_path):
-    from iai_mcp.doctor import _extract_binder_pids, check_g_no_dup_binders
+    from iai_mcp.doctor import (
+        _extract_binder_pids,
+        _extract_binder_pids_ss,
+        check_g_no_dup_binders,
+    )
 
     ctx = mp.get_context("spawn")
 
@@ -173,16 +204,26 @@ def test_check_g_two_binders_fails(short_socket_path):
         assert ready2.wait(timeout=10), "worker 2 never signaled ready"
         time.sleep(0.3)
 
-        lsof_out = subprocess.run(
-            ["lsof", "-U", "-F", "pn"],
-            capture_output=True,
-            text=True,
-            timeout=5,
-            check=False,
-        ).stdout
-        binder_pids = _extract_binder_pids(lsof_out, short_socket_path)
+        if platform.system() == "Linux":
+            ss_out = subprocess.run(
+                ["ss", "-lxp"],
+                capture_output=True,
+                text=True,
+                timeout=5,
+                check=False,
+            ).stdout
+            binder_pids = _extract_binder_pids_ss(ss_out, short_socket_path)
+        else:
+            lsof_out = subprocess.run(
+                ["lsof", "-U", "-F", "pn"],
+                capture_output=True,
+                text=True,
+                timeout=5,
+                check=False,
+            ).stdout
+            binder_pids = _extract_binder_pids(lsof_out, short_socket_path)
         assert {w1.pid, w2.pid}.issubset(binder_pids), (
-            f"lsof should report both worker PIDs as binders; got {binder_pids} "
+            f"socket-binder probe should report both worker PIDs; got {binder_pids} "
             f"(workers: {w1.pid}, {w2.pid})"
         )
 
@@ -204,259 +245,3 @@ def test_check_g_two_binders_fails(short_socket_path):
             if proc.is_alive():
                 proc.terminate()
                 proc.join(timeout=2)
-
-
-@pytest.fixture
-def isolated_daemon_paths(tmp_path, monkeypatch):
-    iai_dir = tmp_path / ".iai-mcp"
-    iai_dir.mkdir(parents=True, exist_ok=True)
-
-    state_path = iai_dir / ".daemon-state.json"
-    lock_path = iai_dir / ".lock"
-    store_dir = iai_dir / "store"
-    store_dir.mkdir(parents=True, exist_ok=True)
-
-    sock_dir = Path(f"/tmp/iai-mb2-{os.getpid()}-{id(tmp_path)}")
-    sock_dir.mkdir(parents=True, exist_ok=True)
-    sock_path = sock_dir / "d.sock"
-
-    real_hf_home = Path.home() / ".cache" / "huggingface"
-
-    monkeypatch.setenv("HOME", str(tmp_path))
-    monkeypatch.setenv("HF_HOME", str(real_hf_home))
-    monkeypatch.setenv("IAI_DAEMON_SOCKET_PATH", str(sock_path))
-    monkeypatch.setenv("IAI_MCP_STORE", str(store_dir))
-    monkeypatch.setenv("IAI_DAEMON_IDLE_SHUTDOWN_SECS", "99999")
-    monkeypatch.setenv(
-        "PYTHON_KEYRING_BACKEND", "keyring.backends.fail.Keyring"
-    )
-    monkeypatch.setenv("IAI_MCP_CRYPTO_PASSPHRASE", "test-mb-passphrase")
-    import keyring.core
-
-    keyring.core._keyring_backend = None
-
-    from iai_mcp import cli, daemon_state
-
-    monkeypatch.setattr(daemon_state, "STATE_PATH", state_path)
-    monkeypatch.setattr(cli, "LOCK_PATH", lock_path)
-    monkeypatch.setattr(cli, "SOCKET_PATH", sock_path)
-
-    try:
-        yield sock_path, state_path, store_dir, lock_path
-    finally:
-        _kill_test_daemons(sock_path)
-        try:
-            if sock_path.exists():
-                sock_path.unlink()
-        except OSError:
-            pass
-        try:
-            sock_dir.rmdir()
-        except OSError:
-            pass
-        keyring.core._keyring_backend = None
-
-
-def _spawn_daemon(sock_path: Path, store_dir: Path, home: Path) -> subprocess.Popen:
-    env = os.environ.copy()
-    env["HOME"] = str(home)
-    env["IAI_DAEMON_SOCKET_PATH"] = str(sock_path)
-    env["IAI_MCP_STORE"] = str(store_dir)
-    env["IAI_DAEMON_IDLE_SHUTDOWN_SECS"] = "99999"
-    env["PYTHON_KEYRING_BACKEND"] = "keyring.backends.fail.Keyring"
-    env["IAI_MCP_CRYPTO_PASSPHRASE"] = "test-mb-passphrase"
-    return subprocess.Popen(
-        [sys.executable, "-m", "iai_mcp.daemon"],
-        env=env,
-        stdout=subprocess.DEVNULL,
-        stderr=subprocess.DEVNULL,
-    )
-
-
-def _wait_for_socket(sock_path: Path, timeout_sec: float = 30.0) -> bool:
-    deadline = time.monotonic() + timeout_sec
-    while time.monotonic() < deadline:
-        if sock_path.exists():
-            return True
-        time.sleep(0.1)
-    return False
-
-
-def _kill_test_daemons(sock_path: Path) -> None:
-    target = str(sock_path)
-    for p in psutil.process_iter(["pid", "cmdline"]):
-        try:
-            cl = " ".join(p.info.get("cmdline") or [])
-            if "iai_mcp.daemon" not in cl:
-                continue
-            try:
-                env = p.environ()
-            except (psutil.AccessDenied, psutil.NoSuchProcess):
-                continue
-            if env.get("IAI_DAEMON_SOCKET_PATH") == target:
-                try:
-                    p.send_signal(signal.SIGTERM)
-                    p.wait(timeout=3)
-                except (psutil.NoSuchProcess, psutil.TimeoutExpired):
-                    try:
-                        p.send_signal(signal.SIGKILL)
-                    except psutil.NoSuchProcess:
-                        pass
-        except (psutil.NoSuchProcess, psutil.AccessDenied):
-            continue
-
-
-def _spawn_dup_daemons(
-    sock_path: Path, store_dir: Path, home: Path
-) -> tuple[subprocess.Popen, subprocess.Popen]:
-    p1 = _spawn_daemon(sock_path, store_dir, home)
-    if not _wait_for_socket(sock_path, timeout_sec=30):
-        try:
-            p1.kill()
-        except ProcessLookupError:
-            pass
-        raise AssertionError("daemon #1 never bound socket within 30s")
-
-    try:
-        sock_path.unlink()
-    except OSError:
-        pass
-
-    p2 = _spawn_daemon(sock_path, store_dir, home)
-    if not _wait_for_socket(sock_path, timeout_sec=30):
-        try:
-            p2.kill()
-        except ProcessLookupError:
-            pass
-        try:
-            p1.kill()
-        except ProcessLookupError:
-            pass
-        raise AssertionError("daemon #2 never bound socket within 30s")
-
-    time.sleep(0.5)
-    return p1, p2
-
-
-@pytest.mark.skip(
-    reason=(
-        "Single-machine LifecycleLock prevents two daemons from both "
-        "binding the same IAI_MCP_STORE. Daemon #2 raises "
-        "LifecycleLockConflict and exits 1 before bind. The dup-binder "
-        "integration scenario is now impossible by design. The unit tests "
-        "in this file (test_extract_binder_pids_*, test_check_g_*) still "
-        "cover check_g's detection logic without spawning two real daemons."
-    )
-)
-def test_kill_dup_binders_keeps_oldest(isolated_daemon_paths):
-    from iai_mcp.doctor import (
-        _extract_binder_pids,
-        _kill_dup_binders,
-        check_g_no_dup_binders,
-    )
-
-    sock_path, _, store_dir, _ = isolated_daemon_paths
-    home = Path(os.environ["HOME"])
-
-    p1, p2 = _spawn_dup_daemons(sock_path, store_dir, home)
-    try:
-        lsof_out = subprocess.run(
-            ["lsof", "-U", "-F", "pn"],
-            capture_output=True,
-            text=True,
-            timeout=5,
-            check=False,
-        ).stdout
-        binders = _extract_binder_pids(lsof_out, sock_path)
-        assert {p1.pid, p2.pid}.issubset(binders), (
-            f"expected both daemon PIDs in binders; got {binders} "
-            f"(daemons: {p1.pid}, {p2.pid})"
-        )
-        pre_check = check_g_no_dup_binders()
-        assert pre_check.passed is False, (
-            f"pre-condition: dup-binder scenario should FAIL check_g; "
-            f"got {pre_check.detail!r}"
-        )
-
-        ok, msg, ms = _kill_dup_binders()
-
-        assert ok is True, f"_kill_dup_binders returned ok=False: {msg}"
-        assert "kept PID" in msg, f"msg missing 'kept PID': {msg!r}"
-        assert "killed" in msg, f"msg missing 'killed': {msg!r}"
-        assert ms < 10_000, f"_kill_dup_binders took {ms}ms (>10s); too slow"
-
-        post_check = check_g_no_dup_binders()
-        assert post_check.passed is True, (
-            f"post-kill check_g should PASS; got {post_check.detail!r}"
-        )
-
-        assert p1.poll() is None, "expected oldest daemon (p1) to survive"
-        deadline = time.monotonic() + 5.0
-        while time.monotonic() < deadline and p2.poll() is None:
-            time.sleep(0.1)
-        assert p2.poll() is not None, "expected younger daemon (p2) to be dead"
-    finally:
-        for proc in (p1, p2):
-            if proc.poll() is None:
-                try:
-                    proc.send_signal(signal.SIGKILL)
-                    proc.wait(timeout=3)
-                except (subprocess.TimeoutExpired, ProcessLookupError):
-                    pass
-
-
-@pytest.mark.skip(
-    reason=(
-        "Single-machine LifecycleLock prevents two daemons from both "
-        "binding the same IAI_MCP_STORE. Daemon #2 raises "
-        "LifecycleLockConflict and exits 1 before bind. End-to-end "
-        "recovery from dup-binders cannot run because the dup-binders "
-        "state is now impossible to construct."
-    )
-)
-def test_doctor_apply_yes_recovers_from_dup_binders(isolated_daemon_paths):
-    from iai_mcp.doctor import (
-        _extract_binder_pids,
-        check_g_no_dup_binders,
-        cmd_doctor,
-    )
-
-    sock_path, _, store_dir, _ = isolated_daemon_paths
-    home = Path(os.environ["HOME"])
-
-    p1, p2 = _spawn_dup_daemons(sock_path, store_dir, home)
-    try:
-        pre = check_g_no_dup_binders()
-        assert pre.passed is False, f"pre: dup-binder should FAIL; got {pre.detail!r}"
-
-        args = argparse.Namespace(apply=True, yes=True)
-        rc = cmd_doctor(args)
-
-        post_check = check_g_no_dup_binders()
-        assert post_check.passed is True, (
-            f"post-recovery: check_g should PASS; got {post_check.detail!r}"
-        )
-        assert rc in (0, 2), (
-            f"cmd_doctor rc={rc} unexpected; allowed 0 (full recovery) or 2 "
-            f"(dup-binders fixed but state-file desync persists)."
-        )
-
-        lsof_out = subprocess.run(
-            ["lsof", "-U", "-F", "pn"],
-            capture_output=True,
-            text=True,
-            timeout=5,
-            check=False,
-        ).stdout
-        binders = _extract_binder_pids(lsof_out, sock_path)
-        assert len(binders) <= 1, (
-            f"after recovery, expected ≤1 binder for {sock_path}; got {binders}"
-        )
-    finally:
-        for proc in (p1, p2):
-            if proc.poll() is None:
-                try:
-                    proc.send_signal(signal.SIGKILL)
-                    proc.wait(timeout=3)
-                except (subprocess.TimeoutExpired, ProcessLookupError):
-                    pass

@@ -14,7 +14,6 @@ from iai_mcp.ashby_step import (
     TopologySnapshot,
 )
 from iai_mcp.daemon import (
-    SleepOverhaulConfig,
     _load_sleep_overhaul_config,
 )
 from iai_mcp.events import query_events
@@ -24,7 +23,7 @@ from iai_mcp.lifecycle_state import (
     load_state,
     save_state,
 )
-from iai_mcp.sleep_pipeline import (
+from iai_mcp.lilli.cycle.sleep_pipeline import (
     MAX_PAIRS_PER_CLUSTER,
     STEP_PHASE,
     SleepPhase,
@@ -101,8 +100,8 @@ def test_r1_step_phase_mapping() -> None:
     assert nrem_steps == {
         SleepStep.SCHEMA_MINE,
         SleepStep.KNOB_TUNE,
-        SleepStep.OPTIMIZE_LANCE,
-        SleepStep.COMPACT_RECORDS,
+        SleepStep.OPTIMIZE_HIPPO,
+        SleepStep.HIPPO_CLEANUP,
     }
     assert rem_steps == {
         SleepStep.DREAM_DECAY,
@@ -126,8 +125,8 @@ def test_r2_step_order_nrem_before_rem() -> None:
         for s in (
             SleepStep.SCHEMA_MINE,
             SleepStep.KNOB_TUNE,
-            SleepStep.OPTIMIZE_LANCE,
-            SleepStep.COMPACT_RECORDS,
+            SleepStep.OPTIMIZE_HIPPO,
+            SleepStep.HIPPO_CLEANUP,
         )
     ]
     rem_positions = [

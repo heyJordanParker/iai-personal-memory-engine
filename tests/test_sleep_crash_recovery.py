@@ -2,12 +2,11 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
-from unittest.mock import AsyncMock, patch
 
 import pytest
 
 try:
-    from iai_mcp.sleep_pipeline import SleepPipeline
+    from iai_mcp.lilli.cycle.sleep_pipeline import SleepPipeline
 except ImportError:
     SleepPipeline = None
 
@@ -32,7 +31,7 @@ class TestSleepCrashRecovery:
         assert not cp.exists(), "Checkpoint should not exist before pipeline runs"
 
     def test_checkpoint_survives_step_names(self, pipeline_dir):
-        steps = ["SCHEMA_MINE", "KNOB_TUNE", "DREAM_DECAY", "OPTIMIZE_LANCE", "COMPACT_RECORDS"]
+        steps = ["SCHEMA_MINE", "KNOB_TUNE", "DREAM_DECAY", "OPTIMIZE_HIPPO", "HIPPO_CLEANUP"]
         for i, step in enumerate(steps):
             _write_checkpoint(pipeline_dir, step, steps[:i])
             cp = json.loads((pipeline_dir / ".sleep-checkpoint.json").read_text())

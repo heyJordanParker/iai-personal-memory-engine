@@ -17,7 +17,7 @@ def step_compact_hippo(
     from iai_mcp.maintenance import optimize_hippo_storage
 
     if self._check_interrupt(
-        SleepStep.OPTIMIZE_LANCE, 0, interrupt_check,
+        SleepStep.OPTIMIZE_HIPPO, 0, interrupt_check,
     ):
         return False, {}
 
@@ -113,7 +113,7 @@ def step_compact_hippo(
     }
 
 
-def step_optimize_lance(
+def step_optimize_hippo(
     self, interrupt_check: Callable[[], bool] | None,
 ) -> tuple[bool, dict[str, Any]]:
     return self._step_compact_hippo(interrupt_check)

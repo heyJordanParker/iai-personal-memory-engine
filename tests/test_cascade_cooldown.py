@@ -6,21 +6,6 @@ from unittest.mock import patch
 import pytest
 
 
-@pytest.mark.skip(
-    reason=(
-        "Documented test-pragmatism fallback: "
-        "patching `iai_mcp.daemon.time.monotonic` deadlocks asyncio's internal "
-        "scheduler — `BaseEventLoop.time()` reads `time.monotonic()` for every "
-        "deadline, so frozen clock => `await asyncio.wait_for(...)` never "
-        "expires. Plan explicitly pre-authorizes simplifying to "
-        "`test_cooldown_clears_after_min_interval_elapsed` only (which proves "
-        "the underlying elapsed-comparison gate logic without asyncio). The "
-        "plan also forbids swapping to pytest-asyncio. R2 acceptance is "
-        "carried by the unit test below + the gate code path's exclusive "
-        "dependence on `time.monotonic - _last_cascade_completed_at` "
-        "(mechanically equivalent under any clock that advances)."
-    )
-)
 def test_at_most_six_cascades_over_five_minute_window_with_continuous_pending(monkeypatch):
     asyncio.run(_at_most_six_cascades_body(monkeypatch))
 
@@ -65,15 +50,16 @@ async def _at_most_six_cascades_body(monkeypatch):
 
     shutdown = asyncio.Event()
 
-    with patch("iai_mcp.daemon.time.monotonic", fake_monotonic), \
-         patch("iai_mcp.retrieve.build_runtime_graph", counting_stub), \
+    with patch("iai_mcp.retrieve.build_runtime_graph", counting_stub), \
          patch("iai_mcp.hippea_cascade.run_cascade", fast_cascade_stub), \
          patch("iai_mcp.daemon_state.load_state", load_state_stub), \
          patch("iai_mcp.daemon_state.save_state", save_state_stub), \
          patch("iai_mcp.daemon.write_event", write_event_stub):
 
         cascade_task = asyncio.create_task(
-            daemon_mod._hippea_cascade_loop(store=None, shutdown=shutdown),
+            daemon_mod._hippea_cascade_loop(
+                store=None, shutdown=shutdown, _clock=fake_monotonic,
+            ),
         )
 
         POLL_STEP = 5.0

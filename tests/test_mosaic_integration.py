@@ -143,11 +143,13 @@ def test_sleep_pipeline_crisis_mode_uses_prior_mode_cold() -> None:
 
 
 def test_sleep_pipeline_does_not_use_run_leiden_directly() -> None:
-    src = (REPO_ROOT / "src" / "iai_mcp" / "sleep_pipeline.py").read_text()
-    assert "from iai_mcp.community import _run_leiden" not in src, (
-        "sleep_pipeline.py must NOT import _run_leiden directly; use "
-        "detect_communities with prior_mode='cold' instead"
-    )
+    pkg = REPO_ROOT / "src" / "iai_mcp" / "lilli" / "cycle" / "sleep_pipeline"
+    for module in sorted(pkg.glob("*.py")):
+        src = module.read_text()
+        assert "from iai_mcp.community import _run_leiden" not in src, (
+            f"{module.name} must NOT import _run_leiden directly; use "
+            "detect_communities with prior_mode='cold' instead"
+        )
 
 
 def test_retrieve_uses_seeded_mode() -> None:

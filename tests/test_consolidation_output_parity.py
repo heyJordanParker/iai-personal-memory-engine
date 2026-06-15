@@ -4,7 +4,7 @@ import json
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
-from uuid import UUID, uuid4
+from uuid import uuid4
 
 import pytest
 
@@ -62,7 +62,6 @@ def _rec(
 
 
 def _seed_store(store: MemoryStore) -> dict[str, Any]:
-    from iai_mcp.sleep import CLUSTER_MIN_SIZE
 
     schema_tag_a = "topic-alpha"
     schema_tag_b = "topic-beta"
@@ -101,7 +100,6 @@ def _seed_store(store: MemoryStore) -> dict[str, Any]:
         delta=0.5,
     )
     from iai_mcp.store import EDGES_TABLE
-    from iai_mcp.hippo import HippoIntegrityError
 
     old_ts = datetime(2025, 9, 28, tzinfo=timezone.utc).isoformat()
     tbl = store.db.open_table(EDGES_TABLE)
@@ -151,7 +149,7 @@ def _run_heavy(store: MemoryStore) -> dict:
 
 def _make_pipeline(store: MemoryStore, tmp_path: Path, suffix: str = ""):
     from iai_mcp.lifecycle_event_log import LifecycleEventLog
-    from iai_mcp.sleep_pipeline import SleepPipeline
+    from iai_mcp.lilli.cycle.sleep_pipeline import SleepPipeline
 
     return SleepPipeline(
         store=store,
@@ -183,8 +181,7 @@ def _get_records_by_tier(store: MemoryStore, tier: str) -> list[dict]:
 
 
 def test_parity_matched_steps_store_state(tmp_path, monkeypatch):
-    from iai_mcp.guard import BudgetLedger, RateLimitLedger
-    from iai_mcp.sleep_pipeline import SleepStep
+    from iai_mcp.lilli.cycle.sleep_pipeline import SleepStep
 
     import datetime as _dt
 
@@ -261,7 +258,6 @@ def test_parity_matched_steps_store_state(tmp_path, monkeypatch):
 
 def test_parity_cls_event(tmp_path):
     from iai_mcp.sleep import _emit_cls_consolidation_run
-    from iai_mcp.sleep_pipeline import SleepStep
 
     store_a = _make_store(tmp_path, "a2")
     store_b = _make_store(tmp_path, "b2")
@@ -338,7 +334,7 @@ def test_parity_cls_event(tmp_path):
 
 
 def test_full_pipeline_includes_cluster_summary_step(tmp_path, monkeypatch):
-    from iai_mcp.sleep_pipeline import SleepPipeline, SleepStep
+    from iai_mcp.lilli.cycle.sleep_pipeline import SleepStep
 
     store = _make_store(tmp_path, "full")
     _seed_store(store)
@@ -347,8 +343,8 @@ def test_full_pipeline_includes_cluster_summary_step(tmp_path, monkeypatch):
     _noop = lambda ic: (True, {})
     steps_to_noop = [
         SleepStep.KNOB_TUNE,
-        SleepStep.OPTIMIZE_LANCE,
-        SleepStep.COMPACT_RECORDS,
+        SleepStep.OPTIMIZE_HIPPO,
+        SleepStep.HIPPO_CLEANUP,
         SleepStep.ERASURE_AGENT,
         SleepStep.CLUSTER_REPLAY,
         SleepStep.RECONSOLIDATION,

@@ -9,7 +9,7 @@ from uuid import uuid4
 
 import numpy as np
 
-from tests.conftest_short_socket import short_socket_path as _short_socket_path_base
+from tests._helpers import short_socket_path as _short_socket_path_base
 
 from iai_mcp.community import CommunityAssignment
 from iai_mcp.daemon import WATCHDOG_PROBE_TIMEOUT_SEC, _probe_status_roundtrip

@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import argparse
 import subprocess
-import sys
 
 import pytest
 
@@ -49,7 +48,7 @@ def test_plist_keepalive_is_crashed_only(monkeypatch):
     rendered = _render_launchd_plist()
     assert "<key>Crashed</key>" in rendered
     assert "<key>SuccessfulExit</key>" not in rendered, (
-        "SuccessfulExit=false was removed from the plist. Its presence "
+        "SuccessfulExit=false must be absent from the plist. Its presence "
         "would create a respawn loop because exit 0 is now the steady state."
     )
 
@@ -73,7 +72,7 @@ def test_plist_legacy_env_vars_removed(monkeypatch):
 
     rendered = _render_launchd_plist()
     assert "<key>IAI_MCP_RSS_RESTART_THRESHOLD_MB</key>" not in rendered, (
-        "RSS-watchdog removed; env var must be gone "
+        "RSS-watchdog is retired; env var must be gone "
         "from the plist."
     )
     assert "<key>IAI_DAEMON_IDLE_SHUTDOWN_SECS</key>" not in rendered
@@ -82,11 +81,11 @@ def test_plist_legacy_env_vars_removed(monkeypatch):
 
 @pytest.mark.xfail(
     reason=(
-        "psutil-availability probe NOT in cmd_daemon_install today. "
-        "Adding it speculatively is deferred. This xfail documents the "
-        "contract for a future addition."
+        "psutil is a mandatory runtime dependency, so the install never needs to "
+        "probe for its absence; this contract stays xfail-strict so an accidental "
+        "probe implementation fails loudly and forces removal of this marker."
     ),
-    strict=False,
+    strict=True,
 )
 def test_install_warns_when_sys_executable_lacks_psutil(
     monkeypatch, capsys, tmp_path,

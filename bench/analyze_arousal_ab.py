@@ -217,7 +217,7 @@ def main(argv: list[str] | None = None) -> int:
 
     summary: dict = {
         "phase": "25",
-        "plan": "14-01",
+        "plan": "arousal-ab",
         "csv_path": str(csv_path),
         "n_rows": n_attributable,
         "n_seeds": n_seeds,

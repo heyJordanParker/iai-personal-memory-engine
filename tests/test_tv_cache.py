@@ -7,14 +7,11 @@ from uuid import uuid4
 import pytest
 
 from iai_mcp.retrieve import (
-    _tv_cache,
     _tv_cache_dirty,
     build_temporal_validity_maps,
-    invalidate_temporal_validity_cache,
 )
 from iai_mcp.store import MemoryStore
 from iai_mcp.types import EMBED_DIM, MemoryRecord
-
 
 def _make_record(text: str = "test record") -> MemoryRecord:
     now = datetime.now(timezone.utc)
@@ -40,7 +37,6 @@ def _make_record(text: str = "test record") -> MemoryRecord:
         language="en",
     )
 
-
 def test_cache_hit_skips_scan(tmp_path):
     store = MemoryStore(path=tmp_path)
     store.insert(_make_record("alice first"))
@@ -55,7 +51,6 @@ def test_cache_hit_skips_scan(tmp_path):
     assert result2 is result1
     assert cache_hit_ms < 1.0
 
-
 def test_cache_invalidated_on_insert(tmp_path):
     store = MemoryStore(path=tmp_path)
     store.insert(_make_record("bob first"))
@@ -69,7 +64,6 @@ def test_cache_invalidated_on_insert(tmp_path):
     result = build_temporal_validity_maps(store)
     assert result is not None
     assert _tv_cache_dirty.get(id(store)) is False
-
 
 def test_cache_invalidated_on_contradict(tmp_path):
     store = MemoryStore(path=tmp_path)
@@ -87,7 +81,6 @@ def test_cache_invalidated_on_contradict(tmp_path):
     outgoing, _ = result
     assert len(outgoing) > 0
 
-
 def test_per_store_isolation(tmp_path):
     store_a = MemoryStore(path=tmp_path / "a")
     store_b = MemoryStore(path=tmp_path / "b")
@@ -103,7 +96,6 @@ def test_per_store_isolation(tmp_path):
 
     result_b_cached = build_temporal_validity_maps(store_b)
     assert result_b_cached is result_b
-
 
 @pytest.mark.perf
 def test_d_speed_bench_green(tmp_path):
@@ -123,5 +115,5 @@ def test_d_speed_bench_green(tmp_path):
 
     min_p95 = best_of_n(_one_p95, n=3)
     assert min_p95 < D_SPEED_P95_MS, (
-        f"best-of-3 p95={min_p95:.1f}ms > {D_SPEED_P95_MS}ms"
+        f"D-SPEED best-of-3 p95={min_p95:.1f}ms > {D_SPEED_P95_MS}ms"
     )

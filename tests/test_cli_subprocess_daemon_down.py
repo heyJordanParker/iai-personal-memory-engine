@@ -17,7 +17,7 @@ from _recall_helpers import (  # noqa: E402
     _prime_structural_cache,
 )
 
-_TEST_CRYPTO_PASSPHRASE = "iai-mcp-test-passphrase-2026-04-30-phase-07.10"
+_TEST_CRYPTO_PASSPHRASE = "iai-mcp-test-passphrase-2026-04-30"
 
 
 def _child_env(store_root: Path, tmp_home: Path) -> dict[str, str]:

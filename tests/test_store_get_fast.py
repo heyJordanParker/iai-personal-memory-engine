@@ -7,9 +7,8 @@ from uuid import UUID, uuid4
 import pytest
 
 from iai_mcp.store import MemoryStore
-from iai_mcp.types import EMBED_DIM, MemoryRecord
+from iai_mcp.types import EMBED_DIM
 from tests.test_store import _make
-
 
 def _seed(
     store: MemoryStore, n: int, *, seed: int = 0, compact: bool = False
@@ -31,13 +30,11 @@ def _seed(
             pass
     return ids
 
-
 def test_get_unknown_id_returns_none(tmp_path):
     store = MemoryStore(path=tmp_path)
     _seed(store, n=5)
     phantom = uuid4()
     assert store.get(phantom) is None
-
 
 def test_get_known_id_roundtrip_with_decrypt(tmp_path):
     store = MemoryStore(path=tmp_path)
@@ -48,7 +45,6 @@ def test_get_known_id_roundtrip_with_decrypt(tmp_path):
     assert got is not None
     assert got.id == r.id
     assert got.literal_surface == verbatim
-
 
 def test_get_does_not_call_unfiltered_to_pandas(tmp_path, monkeypatch):
     store = MemoryStore(path=tmp_path)
@@ -89,7 +85,7 @@ def test_get_does_not_call_unfiltered_to_pandas(tmp_path, monkeypatch):
         "queries through"
     )
 
-
+@pytest.mark.perf
 def test_get_perf_fence_n1k(tmp_path):
     from _perf_helpers import best_of_n, skip_if_loaded
 
@@ -120,7 +116,6 @@ def test_get_perf_fence_n1k(tmp_path):
     assert total <= 500.0, f"N=1k 100x store.get total {total:.1f} ms > 500 ms budget"
     assert mean <= 5.0, f"N=1k store.get mean {mean:.2f} ms > 5 ms/call"
     assert p95 <= 10.0, f"N=1k store.get p95 {p95:.2f} ms > 10 ms/call"
-
 
 def test_get_matches_full_scan_baseline(tmp_path):
     store = MemoryStore(path=tmp_path)

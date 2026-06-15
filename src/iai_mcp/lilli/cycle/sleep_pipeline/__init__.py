@@ -38,8 +38,8 @@ class SleepStep(Enum):
     SCHEMA_MINE = 1
     KNOB_TUNE = 2
     DREAM_DECAY = 3
-    OPTIMIZE_LANCE = 4
-    COMPACT_RECORDS = 5
+    OPTIMIZE_HIPPO = 4
+    HIPPO_CLEANUP = 5
     ERASURE_AGENT = 6
     CLUSTER_REPLAY = 7
     CRISIS_RECLUSTER = 8
@@ -59,8 +59,8 @@ class SleepPhase(Enum):
 STEP_PHASE: dict[SleepStep, SleepPhase] = {
     SleepStep.SCHEMA_MINE: SleepPhase.NREM,
     SleepStep.KNOB_TUNE: SleepPhase.NREM,
-    SleepStep.OPTIMIZE_LANCE: SleepPhase.NREM,
-    SleepStep.COMPACT_RECORDS: SleepPhase.NREM,
+    SleepStep.OPTIMIZE_HIPPO: SleepPhase.NREM,
+    SleepStep.HIPPO_CLEANUP: SleepPhase.NREM,
     SleepStep.DREAM_DECAY: SleepPhase.REM,
     SleepStep.ERASURE_AGENT: SleepPhase.REM,
     SleepStep.CLUSTER_REPLAY: SleepPhase.REM,
@@ -326,8 +326,8 @@ class SleepPipeline:
             SleepStep.KNOB_TUNE: self._step_knob_tune,
             SleepStep.DREAM_DECAY: self._step_dream_decay,
             SleepStep.ERASURE_AGENT: self._step_erasure_agent,
-            SleepStep.OPTIMIZE_LANCE: self._step_optimize_lance,
-            SleepStep.COMPACT_RECORDS: self._step_compact_records,
+            SleepStep.OPTIMIZE_HIPPO: self._step_optimize_hippo,
+            SleepStep.HIPPO_CLEANUP: self._step_hippo_cleanup,
             SleepStep.CLUSTER_REPLAY: self._step_cluster_replay,
             SleepStep.RECONSOLIDATION: self._step_reconsolidation,
             SleepStep.USER_MODEL_UPDATE: self._step_user_model_update,
@@ -341,8 +341,8 @@ class SleepPipeline:
     _STEP_ORDER: tuple[SleepStep, ...] = (
         SleepStep.SCHEMA_MINE,
         SleepStep.KNOB_TUNE,
-        SleepStep.OPTIMIZE_LANCE,
-        SleepStep.COMPACT_RECORDS,
+        SleepStep.OPTIMIZE_HIPPO,
+        SleepStep.HIPPO_CLEANUP,
         SleepStep.DREAM_DECAY,
         SleepStep.ERASURE_AGENT,
         SleepStep.CLUSTER_REPLAY,
@@ -541,9 +541,9 @@ SleepPipeline._step_knob_tune = _knob_tune.step_knob_tune
 SleepPipeline._step_dream_decay = _dream_decay.step_dream_decay
 SleepPipeline._step_erasure_agent = _erasure.step_erasure_agent
 SleepPipeline._step_compact_hippo = _optimize.step_compact_hippo
-SleepPipeline._step_optimize_lance = _optimize.step_optimize_lance
-SleepPipeline._step_compact_records_noop = _compact.step_compact_records_noop
-SleepPipeline._step_compact_records = _compact.step_compact_records
+SleepPipeline._step_optimize_hippo = _optimize.step_optimize_hippo
+SleepPipeline._step_hippo_cleanup_noop = _compact.step_hippo_cleanup_noop
+SleepPipeline._step_hippo_cleanup = _compact.step_hippo_cleanup
 SleepPipeline._step_cluster_replay = _cluster_replay.step_cluster_replay
 SleepPipeline._step_reconsolidation = _reconsolidation.step_reconsolidation
 SleepPipeline._step_user_model_update = _user_model.step_user_model_update

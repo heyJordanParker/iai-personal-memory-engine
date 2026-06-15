@@ -278,7 +278,7 @@ def check_z_avx2_support() -> CheckResult:
         name="(z) AVX2 CPU support",
         passed=False,
         detail=(
-            "this host lacks AVX2 -- the vector index cannot load; iai-mcp memory "
+            "this host lacks AVX2 -- the native memory store cannot load; iai-mcp memory "
             "store is unavailable. Deploy on an AVX2-equipped host (any "
             "Intel CPU 2013+; AMD Excavator 2015+; Mac M-series ARM is "
             "unaffected)."

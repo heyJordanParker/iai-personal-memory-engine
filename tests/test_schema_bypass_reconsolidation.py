@@ -9,13 +9,12 @@ from typing import Any
 import pytest
 
 from iai_mcp.daemon import (
-    ReconsolidationConfig,
     _load_reconsolidation_config,
 )
 from iai_mcp.events import query_events
 from iai_mcp.lifecycle_state import default_state, save_state
 from iai_mcp.reconsolidation_critic import PROMPT_TEMPLATE, call_critic
-from iai_mcp.sleep_pipeline import (
+from iai_mcp.lilli.cycle.sleep_pipeline import (
     STEP_PHASE,
     SleepPhase,
     SleepPipeline,
@@ -476,5 +475,4 @@ def test_call_critic_tier0_fallback_returns_0_when_gate_denies(
     assert err == 0.0
 
 if __name__ == "__main__":  # pragma: no cover -- direct-run convenience
-    import sys
     raise SystemExit(pytest.main([__file__, "-v"]))

@@ -6,14 +6,12 @@ from uuid import uuid4
 import pytest
 
 from iai_mcp.events import (
-    _event_buffer,
     flush_event_buffer,
     query_events,
     write_event,
 )
 from iai_mcp.store import MemoryStore
 from iai_mcp.types import EMBED_DIM, MemoryRecord
-
 
 def _make_record(store, text="alice test"):
     now = datetime.now(timezone.utc)
@@ -29,7 +27,6 @@ def _make_record(store, text="alice test"):
     store.insert(rec)
     return rec
 
-
 def test_buffered_write_does_not_persist_immediately(tmp_path):
     store = MemoryStore(path=tmp_path)
     _make_record(store)
@@ -38,7 +35,6 @@ def test_buffered_write_does_not_persist_immediately(tmp_path):
 
     events = query_events(store, kind="test_kind", limit=10)
     assert len(events) == 0
-
 
 def test_flush_persists_buffered_events(tmp_path):
     store = MemoryStore(path=tmp_path)
@@ -54,7 +50,6 @@ def test_flush_persists_buffered_events(tmp_path):
     events = query_events(store, kind="test_kind", limit=10)
     assert len(events) == 3
 
-
 def test_non_buffered_write_persists_immediately(tmp_path):
     store = MemoryStore(path=tmp_path)
     _make_record(store)
@@ -64,14 +59,12 @@ def test_non_buffered_write_persists_immediately(tmp_path):
     events = query_events(store, kind="immediate_kind", limit=10)
     assert len(events) == 1
 
-
 def test_flush_empty_buffer_returns_zero(tmp_path):
     store = MemoryStore(path=tmp_path)
     _make_record(store)
 
     count = flush_event_buffer(store)
     assert count == 0
-
 
 @pytest.mark.perf
 def test_bench_d_speed_still_green(tmp_path):
@@ -91,5 +84,5 @@ def test_bench_d_speed_still_green(tmp_path):
 
     min_p95 = best_of_n(_one_p95, n=3)
     assert min_p95 < D_SPEED_P95_MS, (
-        f"best-of-3 p95={min_p95:.1f}ms >= {D_SPEED_P95_MS}ms"
+        f"D-SPEED best-of-3 p95={min_p95:.1f}ms >= {D_SPEED_P95_MS}ms"
     )

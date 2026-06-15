@@ -698,7 +698,7 @@ def _build_parser() -> argparse.ArgumentParser:
         "schema-cleanup",
         help=(
             "soft-delete duplicate schema records. Default "
-            "mode is --dry-run; --apply snapshots the LanceDB dir and "
+            "mode is --dry-run; --apply snapshots the memory store dir and "
             "performs the cleanup. Idempotent (re-running is a no-op)."
         ),
     )

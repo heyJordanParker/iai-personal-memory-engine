@@ -9,7 +9,6 @@ import pytest
 
 from iai_mcp.types import EMBED_DIM, MemoryRecord
 
-
 class _ControlledEmbedder:
 
     DIM = EMBED_DIM
@@ -34,7 +33,6 @@ class _ControlledEmbedder:
     def embed_batch(self, texts: list[str]) -> list[list[float]]:
         return [self.embed(t) for t in texts]
 
-
 def _unit_vector_with_cosine(cue_vec: list[float], target_cos: float) -> list[float]:
     cue = np.asarray(cue_vec, dtype=np.float32)
     cue_norm = float(np.linalg.norm(cue))
@@ -57,7 +55,6 @@ def _unit_vector_with_cosine(cue_vec: list[float], target_cos: float) -> list[fl
     if n > 0:
         v = v / n
     return v.astype(np.float32).tolist()
-
 
 def _make_episodic(vec: list[float], text: str) -> MemoryRecord:
     now = datetime.now(timezone.utc)
@@ -83,7 +80,6 @@ def _make_episodic(vec: list[float], text: str) -> MemoryRecord:
         language="en",
     )
 
-
 def _make_schema_hub(vec: list[float], text: str, pattern: str) -> MemoryRecord:
     now = datetime.now(timezone.utc)
     return MemoryRecord(
@@ -108,7 +104,6 @@ def _make_schema_hub(vec: list[float], text: str, pattern: str) -> MemoryRecord:
         language="en",
     )
 
-
 @pytest.fixture(autouse=True)
 def _isolated_keyring(monkeypatch: pytest.MonkeyPatch):
     import keyring as _keyring
@@ -123,17 +118,15 @@ def _isolated_keyring(monkeypatch: pytest.MonkeyPatch):
     )
     yield fake
 
-
 HUB_DEGREE = 8
 HUB_COUNT = 5
 CUE_TEXT = "literal preservation cue marker R3"
-
 
 def _seed_verbatim_vs_hubs(tmp_path):
     from iai_mcp.retrieve import build_runtime_graph
     from iai_mcp.store import MemoryStore
 
-    store = MemoryStore(path=tmp_path / "hippo")
+    store = MemoryStore(path=tmp_path / "lancedb")
     embedder = _ControlledEmbedder()
 
     cue_vec = embedder.embed(CUE_TEXT)
@@ -170,13 +163,11 @@ def _seed_verbatim_vs_hubs(tmp_path):
         verbatim_rec.id, hub_ids, CUE_TEXT,
     )
 
-
 def _verbatim_position(resp, verbatim_id) -> int | None:
     ids = [h.record_id for h in resp.hits]
     if verbatim_id not in ids:
         return None
     return ids.index(verbatim_id)
-
 
 def test_scale_constant_keys_match_profile_enum():
     from iai_mcp.pipeline import LITERAL_PRESERVATION_W_DEGREE_SCALE
@@ -186,11 +177,10 @@ def test_scale_constant_keys_match_profile_enum():
         "medium": 1.0,
         "loose": 1.5,
     }, (
-        "Scale map must use profile enum keys "
+        "Scale map must use profile.py:87 enum keys "
         "(`strong|medium|loose`), not `balanced/weak`. "
         f"Got {LITERAL_PRESERVATION_W_DEGREE_SCALE}"
     )
-
 
 def test_literal_preservation_strong_ranks_verbatim_high(tmp_path):
     from iai_mcp.pipeline import recall_for_response
@@ -218,7 +208,6 @@ def test_literal_preservation_strong_ranks_verbatim_high(tmp_path):
         f"strong scale: verbatim must rank in top-3 "
         f"(pos≤2); got pos={pos}, hits={[h.record_id for h in resp.hits]}"
     )
-
 
 def test_literal_preservation_loose_ranks_verbatim_low(tmp_path):
     from iai_mcp.pipeline import recall_for_response
@@ -248,7 +237,6 @@ def test_literal_preservation_loose_ranks_verbatim_low(tmp_path):
         f"(pos≥4); got pos={pos}, hits={[h.record_id for h in resp.hits]}"
     )
 
-
 def test_literal_preservation_knob_moves_verbatim_position(tmp_path):
     from iai_mcp.pipeline import recall_for_response
 
@@ -277,11 +265,10 @@ def test_literal_preservation_knob_moves_verbatim_position(tmp_path):
     )
     delta = pos_loose - pos_strong
     assert delta >= 3, (
-        f"acceptance: position delta between strong and loose must be "
+        f"R3 acceptance: position delta between strong and loose must be "
         f">= 3. got pos_strong={pos_strong}, pos_loose={pos_loose}, "
         f"delta={delta}"
     )
-
 
 def test_literal_preservation_medium_is_normalize_only_baseline(tmp_path):
     from iai_mcp.pipeline import recall_for_response
@@ -316,7 +303,6 @@ def test_literal_preservation_medium_is_normalize_only_baseline(tmp_path):
         f"strong={pos_s}, medium={pos_m}, loose={pos_l}"
     )
 
-
 def test_empty_profile_state_falls_back_to_medium_scale(tmp_path):
     from iai_mcp.pipeline import recall_for_response
 
@@ -348,7 +334,6 @@ def test_empty_profile_state_falls_back_to_medium_scale(tmp_path):
             f"empty and medium scores must match within float noise; "
             f"empty={scores_empty}, medium={scores_medium}"
         )
-
 
 def test_dispatch_passes_profile_state_to_recall_for_response(tmp_path, monkeypatch):
     from iai_mcp import core, pipeline as _pipeline_mod
@@ -390,31 +375,13 @@ def test_dispatch_passes_profile_state_to_recall_for_response(tmp_path, monkeypa
         f"dispatch must thread the live knob value; got {ps['literal_preservation']}"
     )
 
-
-@pytest.mark.skip(
-    reason=(
-        "Dispatch-integration test — fixture geometry "
-        "(verbatim cos=0.60, hub cos=0.50, deg_norm spread 0→1.0) "
-        "was authored before the community-bias term existed. The "
-        "community-bias adds a +0.1*cos boost on records inside top-3 "
-        "gated communities for concept-mode recalls. On this fixture, BOTH "
-        "verbatim AND hubs land in top-3 communities, so verbatim's "
-        "+0.06 boost outweighs the hub's +0.05 + W_DEGREE delta even "
-        "with literal_preservation=loose. The position-delta proof is "
-        "unreachable on this fixture geometry under the community-bias term. "
-        "Direct-call variants (test_e2e_knob_moves_verbatim_position "
-        "and the other tests in this module) verify the same wiring "
-        "and PASS — the dispatch-integration variant needs a "
-        "fixture recalibration."
-    )
-)
 def test_dispatch_end_to_end_knob_moves_verbatim_position(tmp_path, monkeypatch):
     from iai_mcp import core
     from iai_mcp import embed as _embed_mod
     from uuid import UUID
 
     (store, embedder, graph, assignment, rich_club,
-     verbatim_id, hub_ids, cue_text) = _seed_verbatim_vs_hubs(tmp_path)
+     verbatim_id, hub_ids, cue_text) = _seed_verbatim_vs_hubs_separated(tmp_path)
 
     monkeypatch.setattr(_embed_mod, "embedder_for_store", lambda _store: embedder)
 
@@ -451,4 +418,97 @@ def test_dispatch_end_to_end_knob_moves_verbatim_position(tmp_path, monkeypatch)
         f"E2E via dispatch: position delta between strong and loose must "
         f"be >= 3. got pos_strong={pos_strong}, pos_loose={pos_loose}, "
         f"delta={delta}"
+    )
+
+
+HUB_CUE_TEXT = "team onboarding workflow questions"
+SEPARATED_FILLER_CLUSTERS = 12
+SEPARATED_FILLER_SIZE = 20
+SEPARATED_VERBATIM_COS = 0.52
+
+
+def _seed_verbatim_vs_hubs_separated(tmp_path):
+    """Seed a population where the verbatim record lives in its own community,
+    distinct from every hub community, while the high-degree hubs share the
+    dispatch cue's gated neighborhood.
+
+    The dispatch path derives node degree from `hebbian` edges and selects the
+    community gate by max-node cosine to the cue. Two properties make the
+    strong-vs-loose position delta provable end-to-end:
+
+    1. Hubs carry real `hebbian` degree, so the W_DEGREE term is live in the
+       dispatch path (a `schema_instance_of`-only graph leaves that term inert).
+    2. The verbatim record is edgeless, so community detection places it in a
+       singleton community that differs from every hub community — it does not
+       inherit hub-cluster degree, and the separation is verified fail-loud
+       below.
+
+    The node count is pushed past the flat-assignment floor with filler clusters
+    that sit far from the cue, so community detection runs for real instead of
+    collapsing everything into one community.
+    """
+    from iai_mcp.retrieve import build_runtime_graph
+    from iai_mcp.store import MemoryStore
+
+    store = MemoryStore(path=tmp_path / "lancedb")
+    embedder = _ControlledEmbedder()
+
+    hub_cue_vec = embedder.embed(HUB_CUE_TEXT)
+    embedder.set_fixed(HUB_CUE_TEXT, hub_cue_vec)
+
+    verbatim_vec = _unit_vector_with_cosine(hub_cue_vec, SEPARATED_VERBATIM_COS)
+    verbatim_rec = _make_episodic(
+        verbatim_vec, "the unrelated paragraph of stored prose"
+    )
+    store.insert(verbatim_rec)
+
+    edge_pairs: list = []
+    hub_ids: list = []
+    distractor_idx = 0
+    for h in range(HUB_COUNT):
+        hub_vec = _unit_vector_with_cosine(hub_cue_vec, 0.50)
+        hub_rec = _make_schema_hub(
+            hub_vec, f"schema hub record {h}", pattern=f"hub:test:{h}"
+        )
+        store.insert(hub_rec)
+        hub_ids.append(hub_rec.id)
+        for _ in range(HUB_DEGREE):
+            d_vec = embedder.embed(f"distractor-{distractor_idx}-far-from-cue")
+            d_rec = _make_episodic(d_vec, f"unrelated junk {distractor_idx}")
+            store.insert(d_rec)
+            edge_pairs.append((hub_rec.id, d_rec.id))
+            distractor_idx += 1
+
+    filler_idx = 0
+    for c in range(SEPARATED_FILLER_CLUSTERS):
+        anchor = embedder.embed(f"filler-anchor-{c}")
+        center = _make_episodic(anchor, f"filler center {c}")
+        store.insert(center)
+        for _ in range(SEPARATED_FILLER_SIZE):
+            fv = _unit_vector_with_cosine(anchor, 0.9)
+            fr = _make_episodic(fv, f"filler leaf {filler_idx}")
+            store.insert(fr)
+            edge_pairs.append((center.id, fr.id))
+            filler_idx += 1
+
+    store.boost_edges(edge_pairs, edge_type="hebbian", delta=1.0)
+
+    graph, assignment, rich_club = build_runtime_graph(store)
+
+    verbatim_comm = assignment.node_to_community.get(verbatim_rec.id)
+    hub_comms = {assignment.node_to_community.get(hid) for hid in hub_ids}
+    assert verbatim_comm is not None, (
+        "verbatim record did not land in any community after graph build; "
+        f"node_to_community size={len(assignment.node_to_community)}"
+    )
+    assert verbatim_comm not in hub_comms, (
+        "fixture geometry failed to separate communities: verbatim shares a "
+        f"community ({verbatim_comm}) with a hub. hub communities={hub_comms}. "
+        "Community detection must place verbatim in its own community so it "
+        "does not inherit hub-cluster degree."
+    )
+
+    return (
+        store, embedder, graph, assignment, rich_club,
+        verbatim_rec.id, hub_ids, HUB_CUE_TEXT,
     )

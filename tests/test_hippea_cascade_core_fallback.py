@@ -28,7 +28,7 @@ def _isolated_keyring(monkeypatch: pytest.MonkeyPatch):
 
 @pytest.fixture
 def store(tmp_path: Path) -> MemoryStore:
-    return MemoryStore(path=tmp_path / "hippo")
+    return MemoryStore(path=tmp_path / "lancedb")
 
 
 @pytest.fixture(autouse=True)
@@ -171,6 +171,7 @@ def test_hippea_cascade_module_has_no_anthropic_import():
     assert " from anthropic" not in source
 
 
+@pytest.mark.perf
 def test_compute_core_side_warm_snapshot_is_fast(store, monkeypatch):
     import time
 

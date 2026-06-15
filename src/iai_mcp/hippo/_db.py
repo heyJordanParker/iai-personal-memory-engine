@@ -154,6 +154,7 @@ class HippoDB:
 
         if read_only:
             self._hnsw: hnswlib.Index | None = None  # type: ignore[assignment]
+            self._hnsw_standby: hnswlib.Index | None = None
             try:
                 self._repopulate_label_map_from_sqlite()
             except Exception:  # noqa: BLE001
@@ -421,6 +422,7 @@ class HippoDB:
                     sqlite_count,
                 )
                 self._rebuild_index_from_sqlite()
+                self._allocate_standby_index(cap)
                 return
 
         active_label_count = len(self._label_map)
@@ -431,6 +433,30 @@ class HippoDB:
                 sqlite_count,
             )
             self._rebuild_index_from_sqlite()
+
+        # Second standby buffer, reused across rebuilds so steady-state
+        # consolidation cycles never allocate a fresh C++ index.  Allocated
+        # after any boot-integrity rebuild so the rebuild above takes the
+        # fresh-alloc fallback path (the standby is intentionally absent then).
+        self._allocate_standby_index(cap)
+
+    def _allocate_standby_index(self, cap: int) -> None:
+        from iai_mcp.hippo import (
+            HNSW_EF_CONSTRUCTION,
+            HNSW_M,
+            HNSW_EF,
+            RECALL_INDEX_EF,
+        )
+        standby = hnswlib.Index(space="cosine", dim=self._embed_dim)
+        standby.init_index(
+            max_elements=cap,
+            ef_construction=HNSW_EF_CONSTRUCTION,
+            M=HNSW_M,
+            allow_replace_deleted=True,
+        )
+        standby.set_ef(max(HNSW_EF, RECALL_INDEX_EF))
+        standby.set_num_threads(1)
+        self._hnsw_standby: hnswlib.Index | None = standby
 
     def _repopulate_label_map_from_sqlite(self) -> None:
         _lock = getattr(self, "_conn_lock", None)
@@ -470,26 +496,53 @@ class HippoDB:
         n = len(rows)
         cap = max(HNSW_INITIAL_CAPACITY, n * 2)
 
-        self._hnsw = hnswlib.Index(space="cosine", dim=self._embed_dim)
-        self._hnsw.init_index(
-            max_elements=cap,
-            ef_construction=HNSW_EF_CONSTRUCTION,
-            M=HNSW_M,
-            allow_replace_deleted=True,
-        )
-        self._hnsw.set_ef(max(HNSW_EF, RECALL_INDEX_EF))
-        self._hnsw.set_num_threads(1)
-
+        vecs = None
+        labels = None
         if n > 0:
             vecs = np.stack([
                 np.frombuffer(row["embedding"], dtype=np.float32) for row in rows
             ])
             labels = np.array([int(row["vec_label"]) for row in rows], dtype=np.int64)
-            self._hnsw.add_items(vecs, labels)
 
-        self._save_index_atomic()
+        if getattr(self, "_hnsw_standby", None) is None:
+            # Boot path: the standby is not allocated yet (it is created at the
+            # end of _initialize_hnsw_index, after any boot-integrity rebuild).
+            # Build a fresh active index directly.
+            self._hnsw = hnswlib.Index(space="cosine", dim=self._embed_dim)
+            self._hnsw.init_index(
+                max_elements=cap,
+                ef_construction=HNSW_EF_CONSTRUCTION,
+                M=HNSW_M,
+                allow_replace_deleted=True,
+            )
+            self._hnsw.set_ef(max(HNSW_EF, RECALL_INDEX_EF))
+            self._hnsw.set_num_threads(1)
+            if n > 0:
+                self._hnsw.add_items(vecs, labels)
+            self._save_index_atomic()
+            self._repopulate_label_map_from_sqlite()
+            return {"action": "rebuild", "rebuilt_count": n}
 
-        self._repopulate_label_map_from_sqlite()
+        # Steady-state reuse path: build into the standby buffer lock-free so
+        # readers never observe a torn index, then commit with a single atomic
+        # buffer swap under the recall lock.  Reusing the standby avoids
+        # allocating a fresh C++ index every consolidation cycle.
+        standby = self._hnsw_standby
+        if standby.get_current_count() > 0:
+            for label in list(standby.get_ids_list()):
+                standby.mark_deleted(label)
+        if n > 0:
+            if n > standby.get_max_elements():
+                standby.resize_index(n * 2)
+            standby.add_items(vecs, labels, replace_deleted=True)
+
+        # Publish the freshly-built buffer together with its label map under the
+        # recall lock so a concurrent knn_query reader always sees a consistent
+        # (buffer, label_map) pair — never a half-deleted or half-refilled index.
+        with self._hnsw_lock:
+            self._hnsw, self._hnsw_standby = self._hnsw_standby, self._hnsw
+            self._repopulate_label_map_from_sqlite()
+            self._save_index_atomic()
 
         return {"action": "rebuild", "rebuilt_count": n}
 

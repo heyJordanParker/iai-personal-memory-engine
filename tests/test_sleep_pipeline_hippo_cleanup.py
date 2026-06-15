@@ -2,9 +2,8 @@ from __future__ import annotations
 
 from unittest.mock import MagicMock, patch
 
-import pytest
 
-from iai_mcp.sleep_pipeline import SleepPipeline, SleepStep
+from iai_mcp.lilli.cycle.sleep_pipeline import SleepPipeline, SleepStep
 
 class TestSelfHealDeleted:
     def test_maybe_self_heal_version_pileup_does_not_exist(self) -> None:
@@ -14,30 +13,30 @@ class TestSelfHealDeleted:
 
 class TestEnumValuesFrozen:
     def test_sleep_step_enum_values_preserved(self) -> None:
-        assert SleepStep.OPTIMIZE_LANCE.value == 4, (
-            f"OPTIMIZE_LANCE value changed: {SleepStep.OPTIMIZE_LANCE.value}"
+        assert SleepStep.OPTIMIZE_HIPPO.value == 4, (
+            f"OPTIMIZE_HIPPO value changed: {SleepStep.OPTIMIZE_HIPPO.value}"
         )
-        assert SleepStep.COMPACT_RECORDS.value == 5, (
-            f"COMPACT_RECORDS value changed: {SleepStep.COMPACT_RECORDS.value}"
+        assert SleepStep.HIPPO_CLEANUP.value == 5, (
+            f"HIPPO_CLEANUP value changed: {SleepStep.HIPPO_CLEANUP.value}"
         )
 
 class TestMethodRename:
-    def test_step_optimize_lance_renamed_to_step_compact_hippo(self) -> None:
+    def test_step_optimize_hippo_delegates_to_step_compact_hippo(self) -> None:
         assert hasattr(SleepPipeline, "_step_compact_hippo"), (
             "_step_compact_hippo is missing"
         )
 
-    def test_step_compact_records_is_resume_noop(self) -> None:
+    def test_step_hippo_cleanup_is_resume_noop(self) -> None:
         pipeline = SleepPipeline.__new__(SleepPipeline)
         with patch(
             "iai_mcp.maintenance.optimize_hippo_storage",
         ) as mock_opt:
-            done, payload = pipeline._step_compact_records_noop(
+            done, payload = pipeline._step_hippo_cleanup_noop(
                 interrupt_check=None,
             )
 
         assert done is True, f"Expected done=True, got {done!r}"
-        assert payload == {"action": "noop_under_hippo"}, (
+        assert payload == {"action": "hippo_cleanup_noop"}, (
             f"Unexpected noop payload: {payload!r}"
         )
         mock_opt.assert_not_called()

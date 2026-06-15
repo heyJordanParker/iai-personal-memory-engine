@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import asyncio
 import json
 import os
 import socket
@@ -13,7 +12,6 @@ import pytest
 
 sys.path.insert(0, str(Path(__file__).parent))
 from test_store import _make
-from tests.conftest_short_socket import short_socket  # noqa: F401  — exposes fixture
 
 
 FAIL_FAST_CEILING_S = 3.5
@@ -158,7 +156,6 @@ def test_slow_daemon_degrades_in_under_3s(monkeypatch, tmp_path, short_socket):
     monkeypatch.setenv("IAI_MCP_STORE", str(store_root))
 
     import iai_mcp.iai_cli as _iai_cli
-    from iai_mcp.semantic_recall import recall_semantic_warm as _real_warm
 
     def _fast_degrade(store_root_arg, cue, n=5, *, session_id=None):
         return [{"literal_surface": "User degrade hit", "score": 0.0, "_source": "daemon-down-degrade"}]
