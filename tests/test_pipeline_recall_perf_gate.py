@@ -4,11 +4,11 @@ import time
 
 import pytest
 
+pytestmark = pytest.mark.perf
+
 from tests.test_pipeline_perf import _seed_store
 
-
 CI_GENEROUS_P95_S: float = 0.200
-
 
 def test_pipeline_recall_p95_under_ci_ceiling_after_normalize(tmp_path):
     from iai_mcp.pipeline import recall_for_response
@@ -58,11 +58,10 @@ def test_pipeline_recall_p95_under_ci_ceiling_after_normalize(tmp_path):
     )
 
     assert p95 < CI_GENEROUS_P95_S, (
-        f"normalize regression: recall_for_response N=200 warm "
+        f"Normalize regression: recall_for_response N=200 warm "
         f"best-of-3 p95 = {p95_ms:.2f} ms exceeds CI ceiling "
         f"{CI_GENEROUS_P95_S * 1000:.0f} ms."
     )
-
 
 def test_normalize_overhead_is_submillisecond(tmp_path, capsys):
     from iai_mcp.pipeline import recall_for_response

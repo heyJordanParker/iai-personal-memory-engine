@@ -6,8 +6,8 @@ build-backend = "maturin"
 name    = "iai-mcp-native"
 version = "0.1.0"
 requires-python = ">=3.11"
-license = "MIT"
 
 [tool.maturin]
-module-name = "iai_mcp_native"
-features    = ["extension-module"]
+module-name         = "iai_mcp_native"
+features            = ["extension-module"]
+no-default-features = true

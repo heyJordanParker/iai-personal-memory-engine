@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import logging
 import sys
 import time
 from datetime import datetime, timezone
@@ -10,6 +9,8 @@ from uuid import UUID
 import numpy as np
 import pytest
 
+pytestmark = pytest.mark.perf
+
 sys.path.insert(0, str(Path(__file__).parent))
 from test_store import _make
 
@@ -17,7 +18,6 @@ import iai_mcp.pipeline as _pipeline_mod
 from iai_mcp.embed import Embedder
 from iai_mcp.store import MemoryStore
 from iai_mcp.types import EMBED_DIM
-
 
 RNG_SEED = 20260601
 N_SMALL = 1_000
@@ -30,17 +30,14 @@ LEXICAL_SPECIFIC_CUE = "specialized technical framework review"
 
 RICH_CLUB_CAP = 50
 
-
 def _random_vec(seed: int) -> list[float]:
     rng = np.random.default_rng(seed)
     v = rng.random(EMBED_DIM).astype(np.float32)
     return (v / np.linalg.norm(v)).tolist()
 
-
 def _p95(samples: list[float]) -> float:
     s = sorted(samples)
     return s[int(len(s) * 0.95)]
-
 
 def _monkeypatch_env(monkeypatch, tmp_path: Path) -> None:
     fake_home = tmp_path / "home"
@@ -49,7 +46,6 @@ def _monkeypatch_env(monkeypatch, tmp_path: Path) -> None:
     monkeypatch.setenv("HOME", str(fake_home))
     monkeypatch.setenv("IAI_DAEMON_SOCKET_PATH", str(tmp_path / "daemon.sock"))
     monkeypatch.setenv("IAI_MCP_RECALL_SAMPLE_RATE", "1.0")
-
 
 def _make_gold_record(i: int, vec: list[float]) -> object:
     from iai_mcp.types import MemoryRecord
@@ -74,7 +70,6 @@ def _make_gold_record(i: int, vec: list[float]) -> object:
         tags=[],
         language="en",
     )
-
 
 def _populate_store(store: MemoryStore, n: int, embed_gold: bool = True) -> None:
     rng = np.random.default_rng(RNG_SEED)
@@ -138,7 +133,6 @@ def _populate_store(store: MemoryStore, n: int, embed_gold: bool = True) -> None
     store.insert(_make_gold_record(7, cb_vec))
     store.boost_edges([(UUID(int=6), UUID(int=7))], edge_type="contradicts", delta=[1.0])
 
-
 def _prime_cache(store: MemoryStore) -> None:
     import iai_mcp.retrieve as _retrieve
     import iai_mcp.runtime_graph_cache as _rgc
@@ -146,15 +140,12 @@ def _prime_cache(store: MemoryStore) -> None:
     graph, assignment, rc = _retrieve.build_runtime_graph(store)
     _rgc.save(store, assignment, rc)
 
-
 def _dispatch_recall(store: MemoryStore, params: dict) -> dict:
     from iai_mcp import core
     return core.dispatch(store, "memory_recall", params)
 
-
 def _reset_auto_depth() -> None:
     _pipeline_mod._last_recall_latency_ms = 0.0
-
 
 def _make_recall_params(cue: str, session_id: str = "test-session") -> dict:
     return {
@@ -163,10 +154,8 @@ def _make_recall_params(cue: str, session_id: str = "test-session") -> dict:
         "budget_tokens": 2000,
     }
 
-
 class _ScanFired(Exception):
     pass
-
 
 class ScanCounterContext:
 
@@ -228,7 +217,6 @@ class ScanCounterContext:
         if self._fired and exc_type is None:
             raise _ScanFired(f"full-table scans fired: {self._fired}")
         return False
-
 
 @pytest.mark.slow
 def test_gate_a_latency_and_scan_counter(tmp_path, monkeypatch, caplog):
@@ -321,7 +309,6 @@ def test_gate_a_latency_and_scan_counter(tmp_path, monkeypatch, caplog):
             f"for cell {cell_label!r}"
         )
 
-
 @pytest.mark.slow
 def test_gate_a_within_window_post_write(tmp_path, monkeypatch):
     _monkeypatch_env(monkeypatch, tmp_path)
@@ -363,7 +350,6 @@ def test_gate_a_within_window_post_write(tmp_path, monkeypatch):
     assert p95_ms <= LATENCY_CEILING_MS, (
         f"Gate A A6 FAIL: post-write p95={p95_ms:.1f}ms > {LATENCY_CEILING_MS}ms"
     )
-
 
 @pytest.mark.slow
 def test_gate_a_boundary_cross_cc_g(tmp_path, monkeypatch):
@@ -428,14 +414,13 @@ def test_gate_a_boundary_cross_cc_g(tmp_path, monkeypatch):
         f"Gate A CC-G FAIL: post-boundary p95={p95_ms:.1f}ms > {LATENCY_CEILING_MS}ms"
     )
     assert last_good_calls["n"] >= 1, (
-        "load_last_good_structural not called on post-boundary recall — "
-        "the case-2 degraded read did not fire"
+        "Gate A CC-G FAIL: load_last_good_structural not called on post-boundary recall — "
+        "the CC2-H3 case-2 degraded read did not fire"
     )
     assert last_good_calls["non_empty"], (
         "Gate A CC-G FAIL: load_last_good_structural returned empty rich-club — "
         "the GLOBAL rich-club must be non-empty (off-path prime populated it)"
     )
-
 
 @pytest.mark.slow
 def test_gate_a_pending_heavy_cc2_h4(tmp_path, monkeypatch):
@@ -488,19 +473,18 @@ def test_gate_a_pending_heavy_cc2_h4(tmp_path, monkeypatch):
                 continue
         latency_samples.append(elapsed_ms)
 
-    assert not scan_fired, f"Gate A FAIL: scan fired with pending backlog: {scan_fired}"
+    assert not scan_fired, f"Gate A CC2-H4 FAIL: scan fired with pending backlog: {scan_fired}"
     assert latency_samples, "No successful trials in pending-heavy cell"
     p95_ms = _p95(latency_samples)
-    print(f"\n  Gate A pending-heavy p95: {p95_ms:.1f}ms")
+    print(f"\n  Gate A CC2-H4 pending-heavy p95: {p95_ms:.1f}ms")
     assert p95_ms <= LATENCY_CEILING_MS, (
-        f"Gate A FAIL: pending-heavy p95={p95_ms:.1f}ms > {LATENCY_CEILING_MS}ms"
+        f"Gate A CC2-H4 FAIL: pending-heavy p95={p95_ms:.1f}ms > {LATENCY_CEILING_MS}ms"
     )
     assert decrypt_counts["max_returned"] < pending_count, (
-        f"recent_pending_markers returned {decrypt_counts['max_returned']} "
+        f"Gate A CC2-H4 FAIL: recent_pending_markers returned {decrypt_counts['max_returned']} "
         f"rows — equal to or exceeding the full backlog ({pending_count}). "
         "READ A LIMIT must bound the decrypt."
     )
-
 
 def test_gate_a_cold_no_prime_cc2_h2(tmp_path, monkeypatch):
     _monkeypatch_env(monkeypatch, tmp_path)
@@ -521,7 +505,7 @@ def test_gate_a_cold_no_prime_cc2_h2(tmp_path, monkeypatch):
     _reset_auto_depth()
     resp_cold = _dispatch_recall(store, _make_recall_params(LEXICAL_GENERIC_CUE))
     assert resp_cold.get("_source") == "cold-structural-degrade", (
-        f"Gate A FAIL: truly-cold recall did not return cold-structural-degrade; "
+        f"Gate A CC2-H2 FAIL: truly-cold recall did not return cold-structural-degrade; "
         f"_source={resp_cold.get('_source')!r}. "
         "A fresh cold daemon must NEVER silently drop the hub-sensitive gold "
         "by serving an unlabelled empty rich-club."
@@ -533,16 +517,15 @@ def test_gate_a_cold_no_prime_cc2_h2(tmp_path, monkeypatch):
     _reset_auto_depth()
     resp_warm = _dispatch_recall(store, _make_recall_params(LEXICAL_GENERIC_CUE))
     assert resp_warm.get("_source") != "cold-structural-degrade", (
-        "post-preload recall still returned cold-structural-degrade; "
+        "Gate A CC2-H2 FAIL: post-preload recall still returned cold-structural-degrade; "
         "preload_ready is set and cache file exists."
     )
     hub_gold_str = "00000000-0000-0000-0000-000000000001"
     hit_ids = {h["record_id"] for h in resp_warm.get("hits", [])}
     assert hub_gold_str in hit_ids, (
-        f"Gate A FAIL: hub-sensitive gold not in hits after preload; "
+        f"Gate A CC2-H2 FAIL: hub-sensitive gold not in hits after preload; "
         f"hit_ids={hit_ids}"
     )
-
 
 @pytest.mark.slow
 def test_gate_a_single_write_2hop_spread_cc_c(tmp_path, monkeypatch):
@@ -607,7 +590,6 @@ def test_gate_a_single_write_2hop_spread_cc_c(tmp_path, monkeypatch):
         f"CC-C 2-hop spread: hop-2 gold {hop2_gold_id} not in hits; hit_ids={hit_ids}. "
         "2-hop spread must include records two hops from the seed."
     )
-
 
 @pytest.mark.slow
 def test_gate_a_n10k_latency(tmp_path, monkeypatch, caplog):
@@ -677,7 +659,6 @@ def test_gate_a_n10k_latency(tmp_path, monkeypatch, caplog):
         assert p95_ms <= LATENCY_CEILING_MS, (
             f"Gate A FAIL: p95={p95_ms:.1f}ms > {LATENCY_CEILING_MS}ms for {lbl!r}"
         )
-
 
 def test_gate_a_client_recall_semantic_warm(tmp_path, monkeypatch):
     _monkeypatch_env(monkeypatch, tmp_path)

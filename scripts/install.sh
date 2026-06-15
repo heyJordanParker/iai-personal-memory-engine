@@ -2,15 +2,15 @@
 # scripts/install.sh — first-time setup for collaborators.
 #
 # Usage (from repo root or anywhere inside the clone):
-# bash scripts/install.sh
+#   bash scripts/install.sh
 #
 # Does:
-# 1. creates.venv if missing
-# 2. installs iai-mcp editable into the venv
-# 3. builds the TS MCP wrapper
-# 4. symlinks ~/.local/bin/iai-mcp ->.venv/bin/iai-mcp so the CLI is
-# callable from anywhere without activating the venv
-# 5. optionally installs the sleep daemon (launchd on macOS, systemd on Linux)
+#   1. creates .venv if missing
+#   2. installs iai-mcp editable into the venv
+#   3. builds the TS MCP wrapper
+#   4. symlinks ~/.local/bin/iai-mcp -> .venv/bin/iai-mcp so the CLI is
+#      callable from anywhere without activating the venv
+#   5. optionally installs the sleep daemon (launchd on macOS, systemd on Linux)
 #
 # Idempotent. Safe to re-run.
 
@@ -30,7 +30,7 @@ die()  { printf '\n\033[0;31m✗ %s\033[0m\n' "$*" >&2; exit 1; }
 #
 # IAI_TEST_SKIP_BUILD=1 short-circuits the whole bootstrap so the LaunchAgent
 # section (6) can be exercised in isolation by tests/test_install_uninstall.py
-# (Task 3) without spending ~30s on venv + npm.
+# without spending ~30s on venv + npm.
 # ---------------------------------------------------------------------------
 if [[ "${IAI_TEST_SKIP_BUILD:-0}" == "1" ]]; then
     step "build skip (IAI_TEST_SKIP_BUILD=1)"
@@ -129,15 +129,33 @@ else
 fi
 
 # ---------------------------------------------------------------------------
-# 6. LaunchAgent registration (— socket-activated singleton)
+# 6. LaunchAgent registration (socket-activated singleton)
 #
-# Section 6 — always-on LaunchAgent (RunAtLoad=true, KeepAlive on crash).
-# Renders the plist template, registers it with launchctl, and starts the
-# daemon immediately. Idempotent: overwrites + reloads on every invocation.
+# Section 6 — daemon service registration.
+# macOS: renders plist template, registers with launchctl.
+# Linux: delegates to `iai-mcp daemon install --yes` (systemd user unit).
+# Idempotent on both platforms.
 # ---------------------------------------------------------------------------
-step "LaunchAgent registration"
-if [[ "$(uname)" != "Darwin" ]]; then
-    warn "non-Darwin OS — skipping LaunchAgent registration"
+step "daemon service registration"
+if [[ "$(uname)" == "Linux" ]]; then
+    if [[ "${DRY_RUN:-0}" == "1" ]]; then
+        ok "DRY_RUN=1 — skipping systemd registration (test mode)"
+    else
+        if [ ! -f "${HOME}/.iai-mcp/.crypto.key" ] && [ -z "${IAI_MCP_CRYPTO_PASSPHRASE:-}" ]; then
+            if "${REPO_ROOT}/.venv/bin/iai-mcp" crypto init >/dev/null 2>&1; then
+                ok "crypto key generated (~/.iai-mcp/.crypto.key)"
+            else
+                warn "crypto init failed — run \`iai-mcp crypto init\` manually"
+            fi
+        fi
+        if "${REPO_ROOT}/.venv/bin/iai-mcp" daemon install --yes 2>&1; then
+            ok "systemd user service installed and started"
+        else
+            warn "systemd registration failed — run \`iai-mcp daemon install\` manually"
+        fi
+    fi
+elif [[ "$(uname)" != "Darwin" ]]; then
+    warn "unsupported OS ($(uname)) — skipping daemon registration"
 elif [[ "${DRY_RUN:-0}" == "1" ]]; then
     ok "DRY_RUN=1 — skipping launchctl calls (test mode)"
 else

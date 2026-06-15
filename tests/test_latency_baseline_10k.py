@@ -6,6 +6,8 @@ from pathlib import Path
 
 import pytest
 
+pytestmark = pytest.mark.perf
+
 sys.path.insert(0, str(Path(__file__).parent))
 from test_store import _make
 

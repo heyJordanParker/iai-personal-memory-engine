@@ -7,16 +7,14 @@ import platform
 import socket
 from contextlib import contextmanager
 from pathlib import Path
-from typing import Any, Iterator
+from typing import Iterator
 
 import pytest
-
 
 pytestmark = pytest.mark.skipif(
     platform.system() == "Windows",
     reason="AF_UNIX inherited-fd protocol is POSIX-only in this test scope",
 )
-
 
 @contextmanager
 def _bind_to_fd_3(sock_path: Path) -> Iterator[socket.socket]:
@@ -49,12 +47,10 @@ def _bind_to_fd_3(sock_path: Path) -> Iterator[socket.socket]:
         except OSError:
             pass
 
-
 def _short_sock_path(suffix: str) -> Path:
     sock_dir = Path(f"/tmp/iai-launchd-{os.getpid()}-{suffix}")
     sock_dir.mkdir(parents=True, exist_ok=True)
     return sock_dir / "d.sock"
-
 
 def _cleanup_sock(sock_path: Path) -> None:
     try:
@@ -67,46 +63,41 @@ def _cleanup_sock(sock_path: Path) -> None:
     except OSError:
         pass
 
-
 def test_inherit_returns_none_when_env_missing(monkeypatch):
-    from iai_mcp.socket_server import _inherit_launchd_socket
+    from iai_mcp.socket_server import _inherit_activated_socket
 
     monkeypatch.delenv("LISTEN_FDS", raising=False)
     monkeypatch.delenv("LISTEN_PID", raising=False)
 
-    assert _inherit_launchd_socket() is None
-
+    assert _inherit_activated_socket() is None
 
 def test_inherit_returns_none_when_pid_mismatch(monkeypatch):
-    from iai_mcp.socket_server import _inherit_launchd_socket
+    from iai_mcp.socket_server import _inherit_activated_socket
 
     monkeypatch.setenv("LISTEN_FDS", "1")
     monkeypatch.setenv("LISTEN_PID", "999999")
 
-    assert _inherit_launchd_socket() is None
-
+    assert _inherit_activated_socket() is None
 
 def test_inherit_returns_none_when_fds_zero(monkeypatch):
-    from iai_mcp.socket_server import _inherit_launchd_socket
+    from iai_mcp.socket_server import _inherit_activated_socket
 
     monkeypatch.setenv("LISTEN_FDS", "0")
     monkeypatch.setenv("LISTEN_PID", str(os.getpid()))
 
-    assert _inherit_launchd_socket() is None
-
+    assert _inherit_activated_socket() is None
 
 def test_inherit_returns_none_on_non_integer(monkeypatch):
-    from iai_mcp.socket_server import _inherit_launchd_socket
+    from iai_mcp.socket_server import _inherit_activated_socket
 
     monkeypatch.setenv("LISTEN_FDS", "foo")
     monkeypatch.setenv("LISTEN_PID", str(os.getpid()))
 
-    result = _inherit_launchd_socket()
+    result = _inherit_activated_socket()
     assert result is None
 
-
 def test_inherit_returns_socket_when_env_correct_simulated(monkeypatch):
-    from iai_mcp.socket_server import _inherit_launchd_socket
+    from iai_mcp.socket_server import _inherit_activated_socket
 
     sock_path = _short_sock_path("e")
     try:
@@ -114,7 +105,7 @@ def test_inherit_returns_socket_when_env_correct_simulated(monkeypatch):
             monkeypatch.setenv("LISTEN_FDS", "1")
             monkeypatch.setenv("LISTEN_PID", str(os.getpid()))
 
-            inherited = _inherit_launchd_socket()
+            inherited = _inherit_activated_socket()
             assert inherited is not None, "should have returned the inherited socket"
             try:
                 assert inherited.getsockname() == str(sock_path), (
@@ -130,7 +121,6 @@ def test_inherit_returns_socket_when_env_correct_simulated(monkeypatch):
                     pass
     finally:
         _cleanup_sock(sock_path)
-
 
 async def _connect_and_send_jsonrpc(
     sock_path: Path, method: str, *, timeout: float = 5.0,
@@ -154,9 +144,8 @@ async def _connect_and_send_jsonrpc(
         raise AssertionError("daemon closed without reply")
     return json.loads(line.decode("utf-8"))
 
-
 def test_serve_uses_inherited_socket_path(monkeypatch, tmp_path):
-    store_root = tmp_path / "hippo_root"
+    store_root = tmp_path / "lancedb_root"
     store_root.mkdir(parents=True, exist_ok=True)
     monkeypatch.setenv("IAI_MCP_STORE", str(store_root))
 

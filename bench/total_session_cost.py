@@ -123,7 +123,7 @@ _SCRIPT: list[dict] = [
     },
     {
         "kind": "recall_cross_community",
-        "input": "What is the connection between OPS-13 and the autistic kernel?",
+        "input": "What is the connection between the formality knob and the autistic kernel?",
     },
     {
         "kind": "save",

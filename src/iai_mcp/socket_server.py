@@ -22,7 +22,7 @@ ERR_PARSE_ERROR = -32700
 IDLE_SECS_DEFAULT = 1800
 
 
-def _inherit_launchd_socket() -> socket.socket | None:
+def _inherit_activated_socket() -> socket.socket | None:
     listen_fds = os.environ.get("LISTEN_FDS")
     listen_pid = os.environ.get("LISTEN_PID")
     if listen_fds is None or listen_pid is None:
@@ -200,7 +200,7 @@ class SocketServer:
         sig = inspect.signature(asyncio.start_unix_server)
         supports_cleanup_socket = "cleanup_socket" in sig.parameters
 
-        inherited = _inherit_launchd_socket()
+        inherited = _inherit_activated_socket()
         if inherited is not None:
             server = await asyncio.start_unix_server(
                 self.handle,

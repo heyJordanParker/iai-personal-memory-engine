@@ -6,9 +6,6 @@
 #
 # For survival past logout (headless servers):
 #   loginctl enable-linger $USER
-#
-# C3 / D-14 guard: NO paid-API env var in Environment= lines. claude_cli.py
-# scrubs the subprocess env at spawn time; the unit env is intentionally minimal.
 
 [Unit]
 Description=IAI-MCP Sleep Daemon -- autonomous neural consolidation between sessions

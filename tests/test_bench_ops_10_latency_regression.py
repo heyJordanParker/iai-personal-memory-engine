@@ -4,6 +4,8 @@ from pathlib import Path
 
 import pytest
 
+pytestmark = pytest.mark.perf
+
 
 @pytest.fixture(autouse=True)
 def _isolated_keyring(monkeypatch: pytest.MonkeyPatch):
@@ -41,8 +43,8 @@ def test_neural_map_small_n_p95_under_regression_ceiling(tmp_path: Path):
     min_p95 = best_of_n(_one_p95, n=3)
 
     assert min_p95 < 200.0, (
-        f"regression: best-of-3 p95 {min_p95:.2f}ms > 200ms at N=100 "
-        f"(2x the speed ceiling — likely a real regression, not concurrency noise)"
+        f"OPS-10 regression: best-of-3 p95 {min_p95:.2f}ms > 200ms at N=100 "
+        f"(2x D-SPEED ceiling — likely a real regression, not concurrency noise)"
     )
     assert min_p95 > 0.0
 

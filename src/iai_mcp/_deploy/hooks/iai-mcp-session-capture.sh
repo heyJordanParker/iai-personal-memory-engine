@@ -1,4 +1,4 @@
-#!/usr/bin/env bash
+#!/bin/sh
 # IAI-MCP Stop hook — ambient WRITE-side capture.
 #
 # Fires when a Claude Code session ends. Reads the session's JSONL transcript,
@@ -23,7 +23,7 @@ input=$(cat 2>/dev/null || true)
 
 # Best-effort jq; fall back to Python if jq missing.
 extract() {
-  local key=$1
+  key=$1
   if command -v jq >/dev/null 2>&1; then
     printf '%s' "$input" | jq -r ".${key} // empty" 2>/dev/null
   else
@@ -44,14 +44,14 @@ cwd=$(extract "cwd")
 
 # Fallback: locate transcript if the hook payload didn't include its path.
 # Claude Code stores transcripts under ~/.claude/projects/{cwd-hash}/{uuid}.jsonl
-if [[ -z "$transcript_path" && -n "$session_id" ]]; then
+if [ -z "$transcript_path" ] && [ -n "$session_id" ]; then
   projects_dir="$HOME/.claude/projects"
-  if [[ -d "$projects_dir" ]]; then
+  if [ -d "$projects_dir" ]; then
     # Look for the most recent file whose basename starts with session_id.
     # ls -t (mtime newest first). Avoid `find` per the project's no-grep hook.
     for d in "$projects_dir"/*/; do
       candidate="${d}${session_id}.jsonl"
-      if [[ -f "$candidate" ]]; then
+      if [ -f "$candidate" ]; then
         transcript_path="$candidate"
         break
       fi
@@ -69,7 +69,7 @@ ts=$(date -u +%Y-%m-%dT%H:%M:%SZ)
 } >> "$log" 2>/dev/null
 
 # Skip if we couldn't find anything to capture.
-if [[ -z "$transcript_path" || ! -f "$transcript_path" ]]; then
+if [ -z "$transcript_path" ] || [ ! -f "$transcript_path" ]; then
   echo "$ts skipped: no transcript found" >> "$log" 2>/dev/null
   exit 0
 fi
@@ -88,31 +88,30 @@ fi
 # paths belong in the env var or the cache.
 cli_cache="$HOME/.iai-mcp/.cli-path"
 iai_cli=""
-if [[ -n "${IAI_MCP_SESSION_CAPTURE_CLI:-}" && -x "$IAI_MCP_SESSION_CAPTURE_CLI" ]]; then
+if [ -n "${IAI_MCP_SESSION_CAPTURE_CLI:-}" ] && [ -x "$IAI_MCP_SESSION_CAPTURE_CLI" ]; then
   iai_cli="$IAI_MCP_SESSION_CAPTURE_CLI"
 fi
-if [[ -z "$iai_cli" && -f "$cli_cache" ]]; then
+if [ -z "$iai_cli" ] && [ -f "$cli_cache" ]; then
   cached=$(cat "$cli_cache" 2>/dev/null || true)
-  [[ -x "$cached" ]] && iai_cli="$cached"
+  [ -x "$cached" ] && iai_cli="$cached"
 fi
-if [[ -z "$iai_cli" ]]; then
+if [ -z "$iai_cli" ]; then
   resolved=$(command -v iai-mcp 2>/dev/null || true)
-  if [[ -n "$resolved" && -x "$resolved" ]]; then
+  if [ -n "$resolved" ] && [ -x "$resolved" ]; then
     iai_cli="$resolved"
     printf '%s' "$iai_cli" > "$cli_cache" 2>/dev/null || true
   fi
 fi
-if [[ -z "$iai_cli" ]]; then
-  candidates=(
-    "$HOME/.pyenv/shims/iai-mcp"
-    "$HOME/.local/bin/iai-mcp"
-    "$HOME/.local/pipx/venvs/iai-mcp/bin/iai-mcp"
-    "/opt/homebrew/bin/iai-mcp"
-    "$HOME/IAI-MCP/.venv/bin/iai-mcp"
+if [ -z "$iai_cli" ]; then
+  for candidate in \
+    "$HOME/.pyenv/shims/iai-mcp" \
+    "$HOME/.local/bin/iai-mcp" \
+    "$HOME/.local/pipx/venvs/iai-mcp/bin/iai-mcp" \
+    "/opt/homebrew/bin/iai-mcp" \
+    "$HOME/IAI-MCP/.venv/bin/iai-mcp" \
     "/usr/local/bin/iai-mcp"
-  )
-  for candidate in "${candidates[@]}"; do
-    if [[ -x "$candidate" ]]; then
+  do
+    if [ -x "$candidate" ]; then
       iai_cli="$candidate"
       printf '%s' "$iai_cli" > "$cli_cache" 2>/dev/null || true
       break
@@ -120,7 +119,7 @@ if [[ -z "$iai_cli" ]]; then
   done
 fi
 
-if [[ -z "$iai_cli" ]]; then
+if [ -z "$iai_cli" ]; then
   echo "$ts skipped: iai-mcp CLI not found" >> "$log" 2>/dev/null
   exit 0
 fi
@@ -130,13 +129,13 @@ fi
 # collides with the safety-net output shape `${session_id}-${epoch}.jsonl`
 # in the same second. Also clean the per-session offset state — the session
 # is ending, no further per-turn writes will reference it.
-if [[ -n "$session_id" ]]; then
+if [ -n "$session_id" ]; then
   live_file="$HOME/.iai-mcp/.deferred-captures/${session_id}.live.jsonl"
-  if [[ -f "$live_file" ]]; then
+  if [ -f "$live_file" ]; then
     mv "$live_file" "$HOME/.iai-mcp/.deferred-captures/${session_id}.live-$(date +%s).jsonl" 2>/dev/null || true
   fi
   offset_state="$HOME/.iai-mcp/.capture-state/${session_id}.offset"
-  [[ -f "$offset_state" ]] && rm -f "$offset_state" 2>/dev/null
+  [ -f "$offset_state" ] && rm -f "$offset_state" 2>/dev/null
 fi
 
 # Run capture with a 30s hard timeout — if it hangs, the session must still

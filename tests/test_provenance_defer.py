@@ -78,6 +78,7 @@ def test_flush_truncates_file(tmp_path):
     assert path.read_text().strip() == ""
 
 
+@pytest.mark.perf
 def test_bench_d_speed_still_green(tmp_path):
     from bench.neural_map import run_neural_map_bench, D_SPEED_P95_MS
 

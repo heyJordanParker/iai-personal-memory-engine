@@ -16,6 +16,7 @@ targets = [
     { triple = "x86_64-apple-darwin" },
     { triple = "aarch64-apple-darwin" },
     { triple = "x86_64-unknown-linux-gnu" },
+    { triple = "aarch64-unknown-linux-gnu" },
 ]
 
 [licenses]
@@ -34,8 +35,7 @@ allow = [
     # modifications of the MPL-licensed files themselves, not to the
     # rest of a combined work. Pulled by hf-hub's dirs transitive
     # (`option-ext`) and by rustworkx-core (`priority-queue`, dual-
-    # licensed MPL-2.0 OR LGPL-3.0). We accept MPL but not the copyleft
-    # alternative — the
+    # licensed MPL-2.0 OR LGPL-3.0). We accept MPL but NOT LGPL — the
     # SPDX resolver picks MPL when both are offered.
     "MPL-2.0",
     # CDLA-Permissive-2.0 is a Linux Foundation permissive data license
@@ -43,7 +43,7 @@ allow = [
     # to BSD-3 for compiled code consumption.
     "CDLA-Permissive-2.0",
 ]
-# Copyleft licenses are NOT in the allow-list; cargo-deny rejects any
+# GPL / AGPL / LGPL are NOT in the allow-list; cargo-deny rejects any
 # crate whose declared SPDX expression resolves only to a non-allowed
 # license. (Dual-licensed crates like priority-queue resolve to the
 # first matching allowed license.)

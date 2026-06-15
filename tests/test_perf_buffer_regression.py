@@ -1,12 +1,12 @@
 from __future__ import annotations
 
-import os
 import sys
 import time
 from pathlib import Path
 
 import pytest
 
+pytestmark = pytest.mark.perf
 
 _SRC_PATH = str(Path(__file__).resolve().parent.parent / "src")
 _ROOT_PATH = str(Path(__file__).resolve().parent.parent)
@@ -15,16 +15,14 @@ if _SRC_PATH not in sys.path:
 if _ROOT_PATH not in sys.path:
     sys.path.insert(0, _ROOT_PATH)
 
-
 RSS_MB_THRESHOLD = 1500.0
 
 WALL_TIME_SEC_THRESHOLD = 180.0
 
-
 @pytest.fixture(scope="module")
 def bench_result_and_store_path(tmp_path_factory):
     store_dir = tmp_path_factory.mktemp("perf_regression_bench")
-    store_path = store_dir / "hippo"
+    store_path = store_dir / "lancedb"
     store_path.mkdir(parents=True, exist_ok=True)
 
     from bench.memory_footprint import run_memory_footprint
@@ -34,7 +32,6 @@ def bench_result_and_store_path(tmp_path_factory):
     wall = time.monotonic() - start
 
     return result, store_path, wall
-
 
 def _query_lance_buffer_flush_events(store_path: Path, table_name: str) -> list[dict]:
     from iai_mcp.events import query_events
@@ -47,7 +44,6 @@ def _query_lance_buffer_flush_events(store_path: Path, table_name: str) -> list[
     finally:
         del store
 
-
 @pytest.mark.slow
 def test_n1000_completes_within_wall_time_threshold(bench_result_and_store_path):
     _result, _store_path, wall = bench_result_and_store_path
@@ -55,7 +51,6 @@ def test_n1000_completes_within_wall_time_threshold(bench_result_and_store_path)
         f"N=1000 bench wall-time regression: {wall:.1f}s > {WALL_TIME_SEC_THRESHOLD}s; "
         f"buffer wiring may have reverted to per-row writes"
     )
-
 
 @pytest.mark.slow
 def test_n1000_rss_peak_under_threshold(bench_result_and_store_path):
@@ -68,7 +63,6 @@ def test_n1000_rss_peak_under_threshold(bench_result_and_store_path):
         f"buffered-write fix may have regressed"
     )
 
-
 @pytest.mark.slow
 def test_n1000_emits_records_lance_buffer_flush_events(bench_result_and_store_path):
     _result, store_path, _wall = bench_result_and_store_path
@@ -78,7 +72,6 @@ def test_n1000_emits_records_lance_buffer_flush_events(bench_result_and_store_pa
         f"lance_buffer_flush events for table=records "
         f"(expected >=5 with 1000 records / 100-row default threshold)"
     )
-
 
 @pytest.mark.slow
 @pytest.mark.skip(
@@ -101,7 +94,6 @@ def test_n1000_emits_edges_lance_buffer_flush_events(bench_result_and_store_path
         f"edges buffer wiring not exercised: 0 lance_buffer_flush events for table=edges "
         f"(expected >=1 from hebbian self-loop edge writes at N=1000)"
     )
-
 
 @pytest.mark.slow
 def test_n1000_bench_passes_existing_threshold_mb_check(bench_result_and_store_path):

@@ -14,7 +14,7 @@ name = "stub_gen"
 path = "src/bin/stub_gen.rs"
 
 [features]
-default          = ["accelerate"]
+default          = []
 accelerate       = ["iai_mcp_embed_core/accelerate"]
 metal            = ["iai_mcp_embed_core/metal"]
 extension-module = ["pyo3/extension-module"]   # opt-in; activated by maturin via pyproject.toml ONLY

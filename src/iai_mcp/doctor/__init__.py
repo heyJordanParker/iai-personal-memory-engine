@@ -321,7 +321,7 @@ def _unlink_stale_socket() -> tuple[bool, str, int]:
 
 
 def _respawn_daemon() -> tuple[bool, str, int]:
-    from iai_mcp.cli import LAUNCHD_TARGET
+    from iai_mcp.cli import LAUNCHD_TARGET, SYSTEMD_TARGET, SERVICE_NAME
 
     t0 = time.monotonic()
     socket_path = _resolve_socket_path()
@@ -337,6 +337,17 @@ def _respawn_daemon() -> tuple[bool, str, int]:
             True,
             "launchd-managed (KeepAlive will respawn)",
             int((time.monotonic() - t0) * 1000),
+        )
+
+    if (
+        using_default_socket
+        and platform.system() == "Linux"
+        and SYSTEMD_TARGET
+        and Path(SYSTEMD_TARGET).expanduser().exists()
+    ):
+        subprocess.run(
+            ["systemctl", "--user", "start", SERVICE_NAME],
+            check=False, capture_output=True,
         )
 
     try:

@@ -16,7 +16,7 @@ def test_command_message_dropped():
     result = _parse_transcript_line(line)
     assert result is None, (
         f"command-message line should be filtered (got {result!r}); "
-        "Plan 02 must add the noise filter to _parse_transcript_line"
+        "the noise filter must drop this line"
     )
 
 
@@ -25,7 +25,7 @@ def test_skill_injection_dropped():
     result = _parse_transcript_line(line)
     assert result is None, (
         f"skill-injection line should be filtered (got {result!r}); "
-        "Plan 02 must add the noise filter to _parse_transcript_line"
+        "the noise filter must drop this line"
     )
 
 
@@ -34,7 +34,7 @@ def test_task_notification_dropped():
     result = _parse_transcript_line(line)
     assert result is None, (
         f"task-notification line should be filtered (got {result!r}); "
-        "Plan 02 must add the noise filter to _parse_transcript_line"
+        "the noise filter must drop this line"
     )
 
 
@@ -43,7 +43,7 @@ def test_interrupted_dropped():
     result = _parse_transcript_line(line)
     assert result is None, (
         f"interrupted marker should be filtered (got {result!r}); "
-        "Plan 02 must add the noise filter to _parse_transcript_line"
+        "the noise filter must drop this line"
     )
 
 

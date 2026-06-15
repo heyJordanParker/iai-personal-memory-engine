@@ -1,6 +1,10 @@
 from __future__ import annotations
 
 import time
+
+import pytest
+
+pytestmark = pytest.mark.perf
 from uuid import UUID, uuid4
 
 import numpy as np

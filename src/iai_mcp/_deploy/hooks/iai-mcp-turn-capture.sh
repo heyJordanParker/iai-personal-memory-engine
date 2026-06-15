@@ -1,4 +1,4 @@
-#!/usr/bin/env bash
+#!/bin/sh
 # IAI-MCP UserPromptSubmit hook — per-turn ambient capture.
 #
 # Pure file IO: appends one JSONL event line per new transcript turn to
@@ -14,28 +14,28 @@ set -u
 input=$(cat 2>/dev/null || true)
 
 # Extract session_id and transcript_path in a single subprocess call.
+_extract_tmp=$(mktemp 2>/dev/null || echo "/tmp/iai-mcp-turn-extract-$$.tmp")
 if command -v jq >/dev/null 2>&1; then
-  IFS=$'\t' read -r session_id transcript_path < <(
-    printf '%s' "$input" | jq -r '(.session_id // "") + "\t" + (.transcript_path // "")' 2>/dev/null
-  )
+  printf '%s' "$input" | jq -r '(.session_id // "") + "\t" + (.transcript_path // "")' >"$_extract_tmp" 2>/dev/null
 else
-  IFS=$'\t' read -r session_id transcript_path < <(
-    printf '%s' "$input" | /usr/bin/python3 -c "
+  printf '%s' "$input" | /usr/bin/python3 -c "
 import json, sys
 try:
     d = json.load(sys.stdin)
     print((d.get('session_id') or '') + '\t' + (d.get('transcript_path') or ''))
 except Exception:
     print('\t')
-" 2>/dev/null
-  )
+" >"$_extract_tmp" 2>/dev/null
 fi
+_TAB=$(printf '\t')
+IFS="$_TAB" read -r session_id transcript_path < "$_extract_tmp"
+rm -f "$_extract_tmp" 2>/dev/null || true
 
 mkdir -p "$HOME/.iai-mcp/logs" 2>/dev/null || true
 log="$HOME/.iai-mcp/logs/turn-capture-$(date -u +%Y-%m-%d).log"
 ts=$(date -u +%Y-%m-%dT%H:%M:%SZ)
 
-if [[ -z "$session_id" || -z "$transcript_path" ]]; then
+if [ -z "$session_id" ] || [ -z "$transcript_path" ]; then
   echo "$ts skipped: missing session_id or transcript_path" >> "$log" 2>/dev/null
   exit 0
 fi

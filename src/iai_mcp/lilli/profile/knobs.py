@@ -86,7 +86,7 @@ PROFILE_KNOBS: dict[str, KnobSpec] = {
         "camouflaging_relaxation",
         1,
         0.0,
-        "Detect over-formal writing, gradually relax formality (Phase 1 live)",
+        "Detect over-formal writing, gradually relax formality",
         "float_range:0.0..1.0",
         "AUTIST-13",
     ),
@@ -259,14 +259,14 @@ def profile_set(
     if spec.phase == 2:
         return {
             "status": "error",
-            "reason": "deferred to Phase 2",
+            "reason": "deferred to a future release",
             "knob": knob,
             "requirement_id": spec.requirement_id,
         }
     if spec.phase == 3:
         return {
             "status": "error",
-            "reason": "deferred to Phase 3",
+            "reason": "deferred to a future release",
             "knob": knob,
             "requirement_id": spec.requirement_id,
         }

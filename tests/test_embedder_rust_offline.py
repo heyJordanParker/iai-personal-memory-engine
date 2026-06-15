@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import platform
 import re
 import subprocess
 from pathlib import Path
@@ -28,12 +29,26 @@ def _rust_lib_path() -> Path:
 
 
 @pytest.mark.skipif(not _rust_available(), reason="iai_mcp_native wheel not installed")
-def test_accelerate_framework_linked():
+@pytest.mark.skipif(platform.system() != "Darwin", reason="otool is macOS-only")
+def test_accelerate_src_not_in_default_features():
+    """Verify accelerate-src crate is NOT compiled into the default build.
+
+    Note: Accelerate.framework may still appear via gemm's macOS BLAS
+    auto-detection — that's expected and harmless (it's a system framework,
+    not the opt-in accelerate-src crate). The important invariant is that
+    the accelerate-src build.rs (which hard-fails on Linux) is not in the
+    default dependency tree.
+    """
     lib = _rust_lib_path()
-    result = subprocess.run(["otool", "-L", str(lib)], capture_output=True, text=True)
-    assert result.returncode == 0, result.stderr
-    assert "Accelerate.framework" in result.stdout, (
-        f"Accelerate.framework not linked in {lib}:\n{result.stdout}"
+    result = subprocess.run(["nm", str(lib)], capture_output=True, text=True)
+    assert result.stdout, f"nm produced no output for {lib}"
+    accelerate_src_markers = [
+        line for line in result.stdout.splitlines()
+        if "accelerate_src" in line.lower()
+    ]
+    assert not accelerate_src_markers, (
+        f"accelerate-src symbols found in {lib} (should be opt-in only):\n"
+        + "\n".join(accelerate_src_markers[:10])
     )
 
 
@@ -60,6 +75,7 @@ def test_no_metal_symbols():
 
 
 @pytest.mark.skipif(not _rust_available(), reason="iai_mcp_native wheel not installed")
+@pytest.mark.skipif(platform.system() != "Darwin", reason="otool is macOS-only")
 def test_no_metal_framework_linked():
     lib = _rust_lib_path()
     result = subprocess.run(["otool", "-L", str(lib)], capture_output=True, text=True)
