@@ -9,7 +9,8 @@
   <img src="https://img.shields.io/badge/release-v1.1.2-1f6feb?style=flat-square" alt="Release v1.1.2">
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-1f6feb?style=flat-square" alt="License: MIT"></a>
   <img src="https://img.shields.io/badge/python-3.11%20|%203.12-3776ab?style=flat-square&logo=python&logoColor=white" alt="Python 3.11 | 3.12">
-  <img src="https://img.shields.io/badge/platform-macOS-555?style=flat-square&logo=apple&logoColor=white" alt="Platform: macOS">
+  <img src="https://img.shields.io/badge/platform-macOS%20|%20Linux-555?style=flat-square" alt="Platform: macOS and Linux">
+  <img src="https://img.shields.io/badge/Windows-coming%20soon-999?style=flat-square&logo=windows&logoColor=white" alt="Windows: coming soon">
   <img src="https://img.shields.io/badge/engine-Rust%20native-dea584?style=flat-square&logo=rust&logoColor=black" alt="Rust-native engine">
 </p>
 <p align="center">
@@ -81,14 +82,14 @@ And unlike cloud memory services, there's no API key, no account, and no telemet
 
 ### Prerequisites
 
-- macOS (Apple Silicon tested)
+- macOS (Apple Silicon) or Linux
 - Python 3.11 or 3.12
 - Node.js 18+
 - A Rust toolchain — the native engine builds from source
 - An MCP-compatible CLI host — [Claude Code](https://docs.claude.com/en/docs/claude-code/overview), Codex CLI, Gemini CLI, Cursor CLI, and others
 - ~500 MB free disk
 
-Windows and Linux aren't supported yet — the engine and its native core are macOS-only for now. **Contributions are very welcome:** if you'd like to port iai-mcp to Linux or Windows, open an issue or PR and I'll help however I can.
+macOS and Linux are supported. **Windows is coming soon.** Contributions are very welcome: if you'd like to help land Windows support, open an issue or PR and I'll help however I can.
 
 ### Install
 
