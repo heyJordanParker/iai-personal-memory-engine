@@ -5,6 +5,7 @@ import logging
 import os
 
 from iai_mcp.exceptions import StoreError
+from iai_mcp.lifecycle_state import _utc_now_iso
 
 logger = logging.getLogger(__name__)
 
@@ -48,6 +49,7 @@ def set_crisis_mode_via_s2_or_fallback(
     try:
         rec = self._load_state_record()
         rec["crisis_mode"] = bool(value)
+        rec["crisis_mode_since_ts"] = _utc_now_iso() if bool(value) else None
         self._save_state_record(rec)
         return False
     except (OSError, json.JSONDecodeError) as exc:

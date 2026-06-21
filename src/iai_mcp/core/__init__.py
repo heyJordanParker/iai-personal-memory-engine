@@ -60,6 +60,27 @@ def dispatch(store: MemoryStore, method: str, params: dict) -> dict:
     global _last_injection_embedding, _last_injection_ids, _arousal_state
     if method == "memory_recall":
         _recall_t0 = _time.perf_counter()
+        # crisis_mode honest-degrade: when consolidation is stuck (the
+        # scheduler is looping a deferred step and cannot advance), the warm
+        # recall path serves stale schema-dominated results. Honour the
+        # always-available invariant by returning an explicitly degraded
+        # response so the wrapper falls back to bank-recall via its existing
+        # socket-unreachable code path.
+        try:
+            from iai_mcp.lifecycle_state import load_state as _ls_load_cm
+            _crisis_state = _ls_load_cm()
+            if bool(_crisis_state.get("crisis_mode", False)):
+                logger.warning(
+                    "memory_recall served degraded under crisis_mode; "
+                    "client should fall back to bank-recall"
+                )
+                return {
+                    "hits": [],
+                    "_degraded": True,
+                    "_reason": "daemon_consolidation_stuck",
+                }
+        except Exception as exc:  # noqa: BLE001 -- never let the guard crash recall
+            logger.debug("crisis_mode load_state failed; serving warm path: %s", exc)
         from iai_mcp.cue_router import _classify_cue
         cue_mode, _cue_intent, _triggered_pattern = _classify_cue(params.get("cue", ""))
 

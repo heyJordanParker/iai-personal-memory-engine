@@ -240,5 +240,6 @@ class S2Coordinator:
         async with self.lock:
             rec: LifecycleStateRecord = load_state(self._state_path)
             rec["crisis_mode"] = bool(value)
+            rec["crisis_mode_since_ts"] = _utc_now_iso() if bool(value) else None
             save_state(rec, self._state_path)
             self.version += 1

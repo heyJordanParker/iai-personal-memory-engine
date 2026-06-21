@@ -493,6 +493,58 @@ def test_pipeline_bounded_deferral_persists_chunk_idx(
     assert "DREAM_DECAY" in err
     assert "chunk_idx=0" in err
 
+def test_check_interrupt_captures_active_exception(
+    pipeline: SleepPipeline,
+    state_path: Path,
+    caplog: pytest.LogCaptureFixture,
+):
+    """When _check_interrupt fires while an exception is live in its caller's
+    frame, the persisted `last_error` must include `caused_by=ExcType: repr`
+    so future triage has actionable context. The bare string-only format
+    (the bug Issue #17-A surfaces) makes every deferred report opaque."""
+    import logging
+    caplog.set_level(logging.WARNING, logger="iai_mcp.lilli.cycle.sleep_pipeline")
+    try:
+        raise ValueError("synthetic step failure")
+    except ValueError:
+        result = pipeline._check_interrupt(
+            SleepStep.DREAM_DECAY, chunk_idx=7, interrupt_check=lambda: True,
+        )
+    assert result is True
+
+    record = load_state(state_path)
+    progress = record["sleep_cycle_progress"]
+    err = progress["last_error"] or ""
+    assert err.startswith("deferred:step=DREAM_DECAY:chunk_idx=7"), (
+        f"prefix wrong: {err!r}"
+    )
+    assert "caused_by=ValueError" in err, (
+        f"expected ValueError caused_by tag in last_error, got {err!r}"
+    )
+    assert "synthetic step failure" in err, (
+        f"expected exception repr in last_error, got {err!r}"
+    )
+    warning_msgs = [r.getMessage() for r in caplog.records if r.levelname == "WARNING"]
+    assert any("sleep_step_deferred" in m for m in warning_msgs), warning_msgs
+
+
+def test_check_interrupt_no_exception_still_records_deferred(
+    pipeline: SleepPipeline,
+    state_path: Path,
+):
+    """Symmetric case: when no exception is active, the persisted last_error
+    keeps the bare `deferred:step=X:chunk_idx=Y` shape (backwards compatible)."""
+    result = pipeline._check_interrupt(
+        SleepStep.SCHEMA_MINE, chunk_idx=0, interrupt_check=lambda: True,
+    )
+    assert result is True
+
+    record = load_state(state_path)
+    progress = record["sleep_cycle_progress"]
+    err = progress["last_error"] or ""
+    assert err == "deferred:step=SCHEMA_MINE:chunk_idx=0", err
+
+
 def test_pipeline_resumes_after_deferral(
     pipeline: SleepPipeline,
     monkeypatch: pytest.MonkeyPatch,

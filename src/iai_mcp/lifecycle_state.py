@@ -6,7 +6,7 @@ import tempfile
 from datetime import datetime, timezone
 from enum import Enum
 from pathlib import Path
-from typing import TypedDict
+from typing import NotRequired, TypedDict
 
 LIFECYCLE_STATE_PATH: Path = Path.home() / ".iai-mcp" / "lifecycle_state.json"
 
@@ -45,6 +45,7 @@ class LifecycleStateRecord(TypedDict):
     quarantine: Quarantine | None
     shadow_run: bool
     crisis_mode: bool
+    crisis_mode_since_ts: NotRequired[str | None]
 
 
 def _utc_now_iso() -> str:
@@ -62,6 +63,7 @@ def default_state() -> LifecycleStateRecord:
         "quarantine": None,
         "shadow_run": False,
         "crisis_mode": False,
+        "crisis_mode_since_ts": None,
     }
 
 
@@ -101,6 +103,13 @@ def _validate_record(raw: object) -> LifecycleStateRecord:
             f"lifecycle_state.crisis_mode must be a bool, got {crisis_mode!r}"
         )
     raw["crisis_mode"] = crisis_mode
+
+    since_ts_value = raw.get("crisis_mode_since_ts", None)
+    if since_ts_value is not None and not isinstance(since_ts_value, str):
+        raise ValueError(
+            f"lifecycle_state.crisis_mode_since_ts must be a string or null, got {since_ts_value!r}"
+        )
+    raw["crisis_mode_since_ts"] = since_ts_value
 
     progress = raw.get("sleep_cycle_progress")
     if progress is not None and not isinstance(progress, dict):

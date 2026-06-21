@@ -242,3 +242,53 @@ def test_capture_turn_concurrent_drains_do_not_duplicate(iai_home, tmp_path):
 
     count = _count_episodic_records(store)
     assert count == 1, f"Expected exactly 1 episodic record in the store, found {count}"
+
+
+# ---------------------------------------------------------------------------
+# capture_turn embeds message content, not the positional cue label
+# ---------------------------------------------------------------------------
+
+def test_capture_turn_embeds_content_not_cue(iai_home, monkeypatch):
+    """capture_turn must embed the message text, never the cue.
+
+    Transcript drains pass a positional cue ("session <id> turn <n>") as a
+    provenance label. Embedding the cue instead of the content collapses the
+    stored vector space and destroys semantic recall: every record gets a
+    near-identical label-embedding. This test pins the contract — the embedder
+    must see the real content string.
+    """
+    from iai_mcp.capture import capture_turn
+    from iai_mcp.embed import Embedder
+
+    seen: list[str] = []
+    real_embed = Embedder.embed
+
+    def recording_embed(self, text):
+        seen.append(text)
+        return real_embed(self, text)
+
+    monkeypatch.setattr(Embedder, "embed", recording_embed)
+
+    store = _open_store()
+    cue_label = f"session {SESSION_ID} turn 7"
+    content = "real conversational content that must drive the embedding vector"
+
+    result = capture_turn(
+        store,
+        cue=cue_label,
+        text=content,
+        tier="episodic",
+        session_id=SESSION_ID,
+        role="user",
+    )
+
+    assert result["status"] == "inserted", result
+    assert seen, "embedder was never called"
+    assert content in seen, (
+        f"embedder never saw the content string; saw {seen!r}. "
+        f"capture_turn must embed text, not the cue."
+    )
+    assert cue_label not in seen, (
+        f"embedder was handed the cue label {cue_label!r}; this collapses the "
+        f"stored vector space and breaks semantic recall."
+    )

@@ -735,3 +735,111 @@ def test_migrate_dedupe_episodic_captures_writes_event(tmp_path):
     events = query_events(store, kind="migration_dedupe_episodic_captures")
     assert len(events) >= 1
     assert "tombstoned" in events[0]["data"]
+
+
+# ---------------------------------------------------------------------------
+# migrate_salvage_torn_permanent_failed
+# ---------------------------------------------------------------------------
+
+
+def test_salvage_torn_permanent_failed_recovers_complete_lines(tmp_path):
+    """A torn .permanent-failed-*.jsonl file is salvaged: complete (newline-
+    terminated) prefix is re-deferred for normal drain; the torn tail and
+    the original file go to .quarantine/."""
+    from iai_mcp.migrate import migrate_salvage_torn_permanent_failed
+
+    deferred = tmp_path / ".deferred-captures"
+    deferred.mkdir()
+    torn = deferred / "sess-1-100.permanent-failed-200.jsonl"
+    # 3 complete records + 1 torn tail with NUL fill (the "torn write" signature)
+    torn.write_bytes(
+        b'{"version":1}\n'
+        b'{"text":"a"}\n'
+        b'{"text":"b"}\n'
+        b'{"text":"trunca\x00\x00\x00\x00'
+    )
+
+    dry = migrate_salvage_torn_permanent_failed(deferred_dir=deferred, dry_run=True)
+    assert dry["files_salvaged"] == 1
+    assert dry["records_salvaged"] == 3  # 3 newline-terminated records
+    assert dry["bytes_dropped"] > 0
+    # dry-run does NOT mutate the deferred-captures dir
+    assert torn.exists()
+    assert not (deferred / ".quarantine").exists()
+
+    real = migrate_salvage_torn_permanent_failed(deferred_dir=deferred, dry_run=False)
+    assert real["files_salvaged"] == 1
+    assert real["records_salvaged"] == 3
+    assert real["bytes_dropped"] == dry["bytes_dropped"]
+    # Original moved to quarantine
+    assert not torn.exists()
+    quarantined = list((deferred / ".quarantine").iterdir())
+    assert len(quarantined) == 1
+    # Salvaged prefix sits in the deferred dir under a .salvaged- name
+    salvaged_files = [
+        p for p in deferred.iterdir()
+        if p.is_file() and ".salvaged-" in p.name
+    ]
+    assert len(salvaged_files) == 1
+    # And only the complete lines survived
+    salvaged = salvaged_files[0].read_bytes()
+    assert salvaged.endswith(b"\n")
+    assert b'"trunca' not in salvaged
+
+    # Idempotent: a second run is a no-op
+    again = migrate_salvage_torn_permanent_failed(deferred_dir=deferred, dry_run=False)
+    assert again["files_salvaged"] == 0
+    assert again["records_salvaged"] == 0
+
+
+def test_salvage_no_op_when_no_torn_files(tmp_path):
+    """An empty or torn-free deferred dir returns zero counts cleanly."""
+    from iai_mcp.migrate import migrate_salvage_torn_permanent_failed
+
+    deferred = tmp_path / ".deferred-captures"
+    deferred.mkdir()
+
+    r = migrate_salvage_torn_permanent_failed(deferred_dir=deferred, dry_run=False)
+    assert r == {
+        "files_salvaged": 0,
+        "records_salvaged": 0,
+        "bytes_dropped": 0,
+        "dry_run": False,
+    }
+
+
+def test_write_deferred_captures_uses_atomic_rename_with_pid(tmp_path, monkeypatch):
+    """write_deferred_captures writes to a sibling .jsonl.tmp and os.replaces
+    it to the final name, which includes os.getpid() for parallel-worker
+    collision safety. The final file is only visible AFTER fsync+replace."""
+    import json
+    from pathlib import Path
+
+    from iai_mcp import capture as capture_mod
+
+    monkeypatch.setattr(Path, "home", lambda: tmp_path)
+    transcript = tmp_path / "transcript.jsonl"
+    transcript.write_text(
+        json.dumps({
+            "type": "user",
+            "message": {"role": "user", "content": "hello there"},
+            "uuid": "u-1",
+            "timestamp": "2026-07-01T00:00:00Z",
+        }) + "\n"
+    )
+
+    out_path = capture_mod.write_deferred_captures(
+        "sess-X", transcript, cwd="/tmp",
+    )
+    assert out_path.exists()
+    assert out_path.suffix == ".jsonl"
+    # Filename includes the pid as the last numeric component
+    import os as _os
+    parts = out_path.stem.split("-")
+    assert parts[-1] == str(_os.getpid()), (
+        f"final filename {out_path.name!r} should end with pid {_os.getpid()}"
+    )
+    # No leftover .tmp sibling
+    deferred = tmp_path / ".iai-mcp" / ".deferred-captures"
+    tmp_siblings = list(deferred.glob("*.tmp"))
+    assert tmp_siblings == [], f"unexpected .tmp leftover: {tmp_siblings}"

@@ -251,6 +251,7 @@ from ._analytics import (
     cmd_bank_recall,
     cmd_build_native,
     cmd_migrate,
+    cmd_deferred_unlock_dead_pids,
 )
 
 from ._maintenance import (
@@ -381,6 +382,26 @@ def _build_parser() -> argparse.ArgumentParser:
         ),
     )
     m.add_argument(
+        "--reembed-from-text",
+        action="store_true",
+        help=(
+            "Re-embed every episodic record from its verbatim literal_surface "
+            "text and rebuild the recall index. Repairs records whose stored "
+            "vector was an embedding of the provenance cue label rather than "
+            "the message content. One-time operation; idempotent. Only the "
+            "embedding column is rewritten -- literal_surface is never touched."
+        ),
+    )
+    m.add_argument(
+        "--reembed-batch-size",
+        type=int,
+        default=256,
+        help=(
+            "Records per id-ordered window for --reembed-from-text. Bounds "
+            "memory; embed calls are streamed within each window. Default 256."
+        ),
+    )
+    m.add_argument(
         "--dedupe-episodic",
         action="store_true",
         help=(
@@ -390,7 +411,30 @@ def _build_parser() -> argparse.ArgumentParser:
             "provenance, and embeddings are never touched."
         ),
     )
+    m.add_argument(
+        "--salvage-torn-permanent-failed",
+        action="store_true",
+        help=(
+            "Recover torn .permanent-failed-*.jsonl files (drained mid-write "
+            "before the atomic-write fix). Trims each file to the last "
+            "newline-terminated record, re-deferres the salvageable prefix, "
+            "and quarantines the original. Idempotent; soft-recovery only."
+        ),
+    )
     m.set_defaults(func=cmd_migrate)
+
+    udp = sub.add_parser(
+        "deferred-unlock-dead-pids",
+        help=(
+            "Unlock .processing-<pid>.jsonl files in ~/.iai-mcp/.deferred-captures/ "
+            "whose owner PID is dead or differs from the live daemon's PID. Renames "
+            "each back to .jsonl so the next drain claims it. Idempotent; "
+            "collision-safe. Run while the daemon is stopped to avoid racing the drain."
+        ),
+    )
+    udp.add_argument("--dry-run", action="store_true")
+    udp.add_argument("--json", action="store_true", help="emit a JSON result")
+    udp.set_defaults(func=cmd_deferred_unlock_dead_pids)
 
     c = sub.add_parser(
         "crypto",

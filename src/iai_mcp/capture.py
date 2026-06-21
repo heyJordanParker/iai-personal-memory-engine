@@ -277,7 +277,13 @@ def capture_turn(
     from iai_mcp.events import TELEMETRY_EMBED_NATIVE_FAILURE, write_event
 
     try:
-        emb = embedder_for_store(store).embed(cue or text)
+        # Embed the message content, never the cue. The cue is a provenance
+        # label only (transcript drains and deferred-drain pass a positional
+        # cue such as "session <id> turn <n>"); embedding it collapsed the
+        # stored vector space and broke semantic recall. text is already
+        # validated non-empty above (the MIN_CAPTURE_LEN guard), so embedding
+        # text is safe for every caller.
+        emb = embedder_for_store(store).embed(text)
     except Exception as exc:
         write_event(
             store,
@@ -640,8 +646,15 @@ def write_deferred_captures(
 ) -> Path:
     deferred_dir = Path.home() / ".iai-mcp" / ".deferred-captures"
     deferred_dir.mkdir(parents=True, exist_ok=True)
-    out_path = deferred_dir / f"{session_id}-{int(time.time())}.jsonl"
-    with out_path.open("w") as fh:
+    # Include pid for collision safety: two parallel bulk-import workers in
+    # the same wall-clock second would otherwise race for the same final
+    # path. Stream to a sibling .jsonl.tmp file and atomic-rename only after
+    # flush+fsync — drain filters by ``suffix != ".jsonl"`` so the in-progress
+    # .tmp is never claimed mid-write.
+    final_name = f"{session_id}-{int(time.time())}-{os.getpid()}.jsonl"
+    out_path = deferred_dir / final_name
+    tmp_path = deferred_dir / f"{final_name}.tmp"
+    with tmp_path.open("w") as fh:
         header = {
             "version": 1,
             "deferred_at": datetime.now(timezone.utc).isoformat(),
@@ -650,45 +663,50 @@ def write_deferred_captures(
         }
         fh.write(json.dumps(header, ensure_ascii=False) + "\n")
         path = Path(transcript_path).expanduser()
-        if not path.exists():
-            return out_path
-        seen = 0
-        with path.open() as src:
-            for line in src:
-                if seen >= max_turns:
-                    break
-                seen += 1
-                try:
-                    obj = json.loads(line)
-                except (json.JSONDecodeError, ValueError):
-                    continue
-                msg = obj.get("message") if isinstance(obj.get("message"), dict) else obj
-                role = obj.get("type") or msg.get("role", "")
-                if role not in {"user", "assistant"}:
-                    continue
-                content = msg.get("content", "")
-                if isinstance(content, list):
-                    text_parts = [
-                        b.get("text", "")
-                        for b in content
-                        if isinstance(b, dict) and b.get("type") == "text"
-                    ]
-                    text = "\n".join(text_parts).strip()
-                else:
-                    text = str(content).strip()
-                if not text:
-                    continue
-                event = {
-                    "text": text,
-                    "cue": f"session {session_id} turn {seen}",
-                    "tier": "episodic",
-                    "role": role,
-                    "ts": obj.get("timestamp") or datetime.now(timezone.utc).isoformat(),
-                }
-                src_uuid = obj.get("uuid")
-                if src_uuid:
-                    event["source_uuid"] = src_uuid
-                fh.write(json.dumps(event, ensure_ascii=False) + "\n")
+        if path.exists():
+            seen = 0
+            with path.open() as src:
+                for line in src:
+                    if seen >= max_turns:
+                        break
+                    seen += 1
+                    try:
+                        obj = json.loads(line)
+                    except (json.JSONDecodeError, ValueError):
+                        continue
+                    msg = obj.get("message") if isinstance(obj.get("message"), dict) else obj
+                    role = obj.get("type") or msg.get("role", "")
+                    if role not in {"user", "assistant"}:
+                        continue
+                    content = msg.get("content", "")
+                    if isinstance(content, list):
+                        text_parts = [
+                            b.get("text", "")
+                            for b in content
+                            if isinstance(b, dict) and b.get("type") == "text"
+                        ]
+                        text = "\n".join(text_parts).strip()
+                    else:
+                        text = str(content).strip()
+                    if not text:
+                        continue
+                    event = {
+                        "text": text,
+                        "cue": f"session {session_id} turn {seen}",
+                        "tier": "episodic",
+                        "role": role,
+                        "ts": obj.get("timestamp") or datetime.now(timezone.utc).isoformat(),
+                    }
+                    src_uuid = obj.get("uuid")
+                    if src_uuid:
+                        event["source_uuid"] = src_uuid
+                    fh.write(json.dumps(event, ensure_ascii=False) + "\n")
+        fh.flush()
+        try:
+            os.fsync(fh.fileno())
+        except OSError as exc:  # noqa: BLE001 -- fsync is best-effort
+            log.debug("write_deferred_captures fsync failed: %s", exc)
+    os.replace(tmp_path, out_path)
     return out_path
 
 

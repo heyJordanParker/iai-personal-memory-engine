@@ -155,6 +155,11 @@ from iai_mcp.migrate._timestamps import (  # noqa: E402
     _find_transcript_ts,
 )
 from iai_mcp.migrate._dedupe import migrate_dedupe_episodic_captures  # noqa: E402
+from iai_mcp.migrate._salvage import migrate_salvage_torn_permanent_failed  # noqa: E402
+from iai_mcp.migrate._reembed_from_text import migrate_reembed_from_text  # noqa: E402
+from iai_mcp.migrate._dead_pid_unlock import (  # noqa: E402
+    migrate_unlock_dead_pid_processing_files,
+)
 
 
 __all__ = [
@@ -174,4 +179,7 @@ __all__ = [
     "cleanup_schema_duplicates",
     "migrate_rederive_collapsed_timestamps",
     "migrate_dedupe_episodic_captures",
+    "migrate_salvage_torn_permanent_failed",
+    "migrate_reembed_from_text",
+    "migrate_unlock_dead_pid_processing_files",
 ]

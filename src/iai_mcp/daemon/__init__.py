@@ -23,7 +23,9 @@ from iai_mcp.concurrency import serve_control_socket  # noqa: F401 -- re-exporte
 from iai_mcp.daemon_state import load_state, save_state
 from iai_mcp.dream import run_rem_cycle
 from iai_mcp.events import (
+    CRISIS_MODE_AUTO_EXPIRED,
     DAEMON_MEMORY_PRESSURE_KILL,
+    DAEMON_SLEEP_CYCLE_STALE,
     DAEMON_WATCHDOG_NEEDS_OPERATOR,
     DAEMON_WEDGE_KILL,
     write_event,
@@ -1099,6 +1101,41 @@ async def main() -> int:
                     pass
 
                 try:
+                    from iai_mcp.lifecycle_state import (
+                        load_state as _load_lc,
+                        save_state as _save_lc,
+                    )
+                    _lc_state = await asyncio.to_thread(_load_lc)
+                    _now_utc = datetime.now(timezone.utc)
+                    _expired, _ctx = _check_crisis_mode_expiry(_lc_state, _now_utc)
+                    if _expired:
+                        _lc_state["crisis_mode"] = False
+                        _lc_state["crisis_mode_since_ts"] = None
+                        await asyncio.to_thread(_save_lc, _lc_state)
+                        try:
+                            def _emit_expiry() -> None:
+                                write_event(
+                                    store,
+                                    CRISIS_MODE_AUTO_EXPIRED,
+                                    _ctx,
+                                    severity="warning",
+                                )
+                            await asyncio.to_thread(_emit_expiry)
+                        except Exception:  # noqa: BLE001 -- ledger emit failure non-fatal
+                            log.debug(
+                                "crisis_mode_auto_expired emit failed",
+                                exc_info=True,
+                            )
+                    elif _ctx.get("backfilled_since_ts"):
+                        _lc_state["crisis_mode_since_ts"] = _ctx["backfilled_since_ts"]
+                        await asyncio.to_thread(_save_lc, _lc_state)
+                except Exception:  # noqa: BLE001 -- expiry check MUST NOT crash lifecycle_tick
+                    log.debug(
+                        "lifecycle_tick crisis_mode expiry check failed",
+                        exc_info=True,
+                    )
+
+                try:
                     scanner_active = await asyncio.to_thread(
                         _heartbeat_scanner.is_active,
                     )
@@ -1439,6 +1476,8 @@ from iai_mcp.daemon._watchdog import (  # noqa: E402 -- re-exported after main()
     WATCHDOG_MAX_RECOVERIES,
     WATCHDOG_RECOVERY_WINDOW_SEC,
     WATCHDOG_COLD_START_GRACE_SEC,
+    WATCHDOG_SLEEP_STALE_THRESHOLD_SEC,
+    WATCHDOG_CRISIS_MODE_EXPIRY_SEC,
     _WATCHDOG_LOG_FD,
     _WATCHDOG_BLACKBOX_FD,
     _WATCHDOG_BLACKBOX_EPISODE_FIRED,
@@ -1446,12 +1485,15 @@ from iai_mcp.daemon._watchdog import (  # noqa: E402 -- re-exported after main()
     BOOT_LOCK_RETRY_ATTEMPTS,
     BOOT_LOCK_RETRY_BACKOFF_SEC,
     _last_overload_event_at,
+    _last_sleep_stale_started_at,
     _daemon_started_monotonic,
     _hippea_cascade_loop,
     _watchdog_active_task_names,
     _cpu_watchdog_loop,
     _next_poll_interval,
     _evaluate_watchdog,
+    _check_sleep_cycle_staleness,
+    _check_crisis_mode_expiry,
     _watchdog_state_dir,
     _watchdog_log_path,
     _watchdog_socket_path,
@@ -1545,6 +1587,8 @@ __all__ = [
     "WATCHDOG_MAX_RECOVERIES",
     "WATCHDOG_RECOVERY_WINDOW_SEC",
     "WATCHDOG_COLD_START_GRACE_SEC",
+    "WATCHDOG_SLEEP_STALE_THRESHOLD_SEC",
+    "WATCHDOG_CRISIS_MODE_EXPIRY_SEC",
     "_WATCHDOG_LOG_FD",
     "_WATCHDOG_BLACKBOX_FD",
     "_WATCHDOG_BLACKBOX_EPISODE_FIRED",
@@ -1552,12 +1596,15 @@ __all__ = [
     "BOOT_LOCK_RETRY_ATTEMPTS",
     "BOOT_LOCK_RETRY_BACKOFF_SEC",
     "_last_overload_event_at",
+    "_last_sleep_stale_started_at",
     "_daemon_started_monotonic",
     "_hippea_cascade_loop",
     "_watchdog_active_task_names",
     "_cpu_watchdog_loop",
     "_next_poll_interval",
     "_evaluate_watchdog",
+    "_check_sleep_cycle_staleness",
+    "_check_crisis_mode_expiry",
     "_watchdog_state_dir",
     "_watchdog_log_path",
     "_watchdog_socket_path",
@@ -1573,6 +1620,8 @@ __all__ = [
     "_watchdog_tick",
     "_liveness_watchdog",
     "DAEMON_MEMORY_PRESSURE_KILL",
+    "DAEMON_SLEEP_CYCLE_STALE",
     "DAEMON_WATCHDOG_NEEDS_OPERATOR",
     "DAEMON_WEDGE_KILL",
+    "CRISIS_MODE_AUTO_EXPIRED",
 ]

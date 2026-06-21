@@ -121,6 +121,20 @@ def cmd_migrate(args: argparse.Namespace) -> int:
         )
         return 0
 
+    if bool(getattr(args, "reembed_from_text", False)):
+        from iai_mcp.migrate import migrate_reembed_from_text
+        dry_run = bool(getattr(args, "dry_run", False))
+        batch_size = int(getattr(args, "reembed_batch_size", 256))
+        result = migrate_reembed_from_text(
+            store, dry_run=dry_run, batch_size=batch_size
+        )
+        prefix = "[dry-run] would re-embed" if dry_run else "re-embedded"
+        print(
+            f"{prefix} {result['reembedded']} records; "
+            f"skipped={result['skipped']} total={result['total']}"
+        )
+        return 0
+
     if bool(getattr(args, "dedupe_episodic", False)):
         from iai_mcp.migrate import migrate_dedupe_episodic_captures
         dry_run = bool(getattr(args, "dry_run", False))
@@ -129,6 +143,18 @@ def cmd_migrate(args: argparse.Namespace) -> int:
         print(
             f"{prefix} {result['tombstoned']} duplicate records "
             f"across {result['groups']} group(s)"
+        )
+        return 0
+
+    if bool(getattr(args, "salvage_torn_permanent_failed", False)):
+        from iai_mcp.migrate import migrate_salvage_torn_permanent_failed
+        dry_run = bool(getattr(args, "dry_run", False))
+        result = migrate_salvage_torn_permanent_failed(dry_run=dry_run)
+        prefix = "[dry-run] would salvage" if dry_run else "salvaged"
+        print(
+            f"{prefix} {result['records_salvaged']} record(s) from "
+            f"{result['files_salvaged']} file(s); "
+            f"dropped {result['bytes_dropped']} torn bytes"
         )
         return 0
 
@@ -187,6 +213,30 @@ def cmd_migrate(args: argparse.Namespace) -> int:
         file=_cli.sys.stderr,
     )
     return 2
+
+
+def cmd_deferred_unlock_dead_pids(args: argparse.Namespace) -> int:
+    """Unlock `.processing-<pid>.jsonl` files in the deferred-captures dir whose owner
+    PID is dead or differs from the live daemon's PID. Renames each back to `.jsonl`
+    so the next drain tick claims it. Idempotent; collision-safe."""
+    import json as _json
+    from iai_mcp.migrate import migrate_unlock_dead_pid_processing_files
+
+    dry_run = bool(getattr(args, "dry_run", False))
+    emit_json = bool(getattr(args, "json", False))
+    result = migrate_unlock_dead_pid_processing_files(dry_run=dry_run)
+    if emit_json:
+        print(_json.dumps(result, indent=2, sort_keys=True))
+        return 0
+    prefix = "[dry-run] would unlock" if dry_run else "unlocked"
+    print(
+        f"{prefix} {result['files_unlocked']} file(s) "
+        f"(scanned {result['files_scanned']}; "
+        f"skipped_live_current_daemon={result['skipped_live_current_daemon']}; "
+        f"collision_safe_renames={result['collision_safe_renames']}; "
+        f"live_daemon_pid={result['live_daemon_pid']})"
+    )
+    return 0
 
 
 def cmd_bank_recall(args: argparse.Namespace) -> int:

@@ -14,9 +14,11 @@ from pathlib import Path
 
 from iai_mcp.events import (
     DAEMON_MEMORY_PRESSURE_KILL,
+    DAEMON_SLEEP_CYCLE_STALE,
     DAEMON_WATCHDOG_NEEDS_OPERATOR,
     DAEMON_WEDGE_KILL,
 )
+from iai_mcp.lifecycle_state import LifecycleState
 
 log = logging.getLogger(__name__)
 
@@ -84,6 +86,12 @@ WATCHDOG_RECOVERY_WINDOW_SEC: float = float(
 WATCHDOG_COLD_START_GRACE_SEC: float = float(
     os.environ.get("IAI_MCP_WATCHDOG_COLD_START_GRACE_SEC", "600.0"),
 )
+WATCHDOG_SLEEP_STALE_THRESHOLD_SEC: float = float(
+    os.environ.get("IAI_MCP_WATCHDOG_SLEEP_STALE_THRESHOLD_SEC", "7200.0"),
+)
+WATCHDOG_CRISIS_MODE_EXPIRY_SEC: int = int(
+    os.environ.get("IAI_MCP_CRISIS_MODE_EXPIRY_SEC", "259200"),
+)
 
 _WATCHDOG_LOG_FD: int | None = None
 
@@ -104,6 +112,8 @@ BOOT_LOCK_RETRY_BACKOFF_SEC: float = float(
 )
 
 _last_overload_event_at: float = 0.0
+
+_last_sleep_stale_started_at: str = ""
 
 _daemon_started_monotonic: float | None = None
 
@@ -513,6 +523,108 @@ def _load_recovery_timestamps(
     return out
 
 
+def _check_sleep_cycle_staleness(
+    state: "LifecycleStateRecord | dict",
+    now: datetime,
+    *,
+    threshold_sec: float = WATCHDOG_SLEEP_STALE_THRESHOLD_SEC,
+) -> tuple[bool, dict]:
+    """Predicate: lifecycle stuck in SLEEP for too long.
+
+    Returns (is_stale, context_dict). context_dict is empty when is_stale=False;
+    when is_stale=True it carries the fields the caller copies into the
+    daemon_sleep_cycle_stale event payload.
+
+    Never raises. Malformed state, missing keys, or unparseable timestamps all
+    return (False, {}) so a watchdog tick is never blocked by state-file decay.
+    """
+    try:
+        if state.get("current_state") != LifecycleState.SLEEP.value:
+            return (False, {})
+        progress = state.get("sleep_cycle_progress")
+        if not isinstance(progress, dict):
+            return (False, {})
+        attempt = progress.get("attempt")
+        if not isinstance(attempt, int) or attempt != 1:
+            return (False, {})
+        started_at_raw = progress.get("started_at")
+        if not isinstance(started_at_raw, str) or not started_at_raw:
+            return (False, {})
+        try:
+            started_dt = datetime.fromisoformat(started_at_raw)
+        except (ValueError, TypeError):
+            return (False, {})
+        if started_dt.tzinfo is None:
+            started_dt = started_dt.replace(tzinfo=timezone.utc)
+        if now.tzinfo is None:
+            now = now.replace(tzinfo=timezone.utc)
+        stuck_sec = (now - started_dt).total_seconds()
+        if stuck_sec <= threshold_sec:
+            return (False, {})
+        return (True, {
+            "sleep_cycle_started_at": started_at_raw,
+            "sleep_stuck_sec": int(stuck_sec),
+            "threshold_sec": int(threshold_sec),
+            "last_completed_index": progress.get("last_completed_index"),
+            "last_error": progress.get("last_error"),
+            "attempt": attempt,
+            "crisis_mode": bool(state.get("crisis_mode", False)),
+        })
+    except Exception:  # noqa: BLE001 -- predicate MUST NEVER crash the watchdog
+        return (False, {})
+
+
+def _check_crisis_mode_expiry(
+    state: "LifecycleStateRecord | dict",
+    now: datetime,
+    threshold_sec: int = WATCHDOG_CRISIS_MODE_EXPIRY_SEC,
+) -> tuple[bool, dict]:
+    """Decide whether crisis_mode has exceeded its self-heal threshold.
+
+    Never raises. Returns (expired, ctx):
+      - expired=True  -> caller MUST clear crisis_mode + emit
+        crisis_mode_auto_expired.
+      - expired=False, ctx={"backfilled_since_ts": iso} -> caller MUST
+        backfill since_ts without emitting (legacy or malformed state
+        observed for the first time).
+      - expired=False, ctx={} -> no-op (not in crisis, or within threshold).
+    """
+    try:
+        if not bool(state.get("crisis_mode", False)):
+            return (False, {})
+        since_raw = state.get("crisis_mode_since_ts")
+        if since_raw is None:
+            return (False, {"backfilled_since_ts": now.isoformat()})
+        if not isinstance(since_raw, str) or not since_raw:
+            return (False, {"backfilled_since_ts": now.isoformat()})
+        try:
+            since_dt = datetime.fromisoformat(since_raw)
+        except (TypeError, ValueError):
+            return (False, {"backfilled_since_ts": now.isoformat()})
+        if since_dt.tzinfo is None:
+            since_dt = since_dt.replace(tzinfo=timezone.utc)
+        if now.tzinfo is None:
+            now = now.replace(tzinfo=timezone.utc)
+        elapsed_sec = (now - since_dt).total_seconds()
+        if elapsed_sec <= threshold_sec:
+            return (False, {})
+        progress = state.get("sleep_cycle_progress") or {}
+        if not isinstance(progress, dict):
+            progress = {}
+        return (True, {
+            "since_ts": since_raw,
+            "expired_after_sec": int(elapsed_sec),
+            "threshold_sec": int(threshold_sec),
+            "last_error": progress.get("last_error"),
+            "last_completed_index": progress.get("last_completed_index"),
+            "attempt": progress.get("attempt"),
+            "current_state": state.get("current_state"),
+            "backfilled": False,
+        })
+    except Exception:  # noqa: BLE001 -- predicate MUST NEVER crash the tick
+        return (False, {})
+
+
 async def _probe_status_roundtrip(sock_path: str, read_timeout: float) -> bool:
     try:
         reader, writer = await asyncio.wait_for(
@@ -619,6 +731,29 @@ def _watchdog_tick(
         max_recoveries=WATCHDOG_MAX_RECOVERIES,
         recovery_window_sec=WATCHDOG_RECOVERY_WINDOW_SEC,
     )
+
+    # --- sleep-cycle-staleness alert (informational, no kill) ---
+    try:
+        from iai_mcp.lifecycle_state import load_state as _load_lifecycle
+        lc_state = _load_lifecycle()
+        is_stale, ctx = _check_sleep_cycle_staleness(
+            lc_state, datetime.now(timezone.utc)
+        )
+        if is_stale:
+            started_at = ctx["sleep_cycle_started_at"]
+            if getattr(_pkg(), "_last_sleep_stale_started_at", "") != started_at:
+                try:
+                    write_event(
+                        store,
+                        DAEMON_SLEEP_CYCLE_STALE,
+                        ctx,
+                        severity="critical",
+                    )
+                    setattr(_pkg(), "_last_sleep_stale_started_at", started_at)
+                except Exception:  # noqa: BLE001 -- ledger emit failure non-fatal
+                    log.debug("daemon_sleep_cycle_stale emit failed", exc_info=True)
+    except Exception:  # noqa: BLE001 -- staleness check MUST NEVER crash the watchdog
+        log.debug("sleep-cycle staleness check failed", exc_info=True)
 
     if action == "kill":
         kind = (

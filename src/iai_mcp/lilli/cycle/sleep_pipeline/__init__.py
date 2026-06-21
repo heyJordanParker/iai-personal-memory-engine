@@ -296,13 +296,28 @@ class SleepPipeline:
             should = False
         if not should:
             return False
+        # Capture exception context if an exception was active in this frame's
+        # caller — that's the real signal future triage needs. Without this,
+        # every report of this class arrives with "no traceback".
+        import sys
+        exc_str = ""
+        exc_info = sys.exc_info()
+        if exc_info[0] is not None and exc_info[1] is not None:
+            exc_type = exc_info[0].__name__
+            exc_msg = repr(exc_info[1])[:200]
+            exc_str = f" caused_by={exc_type}: {exc_msg}"
         prior = self._load_progress() or {}
         last_completed_index = self._STEP_ORDER.index(step) - 1
         attempt = int(prior.get("attempt", 0))
+        last_error = f"deferred:step={step.name}:chunk_idx={chunk_idx}{exc_str}"
         self._save_progress(
             last_completed_index=last_completed_index,
             attempt=attempt,
-            last_error=f"deferred:step={step.name}:chunk_idx={chunk_idx}",
+            last_error=last_error,
+        )
+        logger.warning(
+            "sleep_step_deferred step=%s chunk_idx=%d%s",
+            step.name, chunk_idx, exc_str,
         )
         return True
 

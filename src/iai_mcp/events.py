@@ -29,6 +29,8 @@ TELEMETRY_EMBED_CONSTRUCT: str = "embed_construct"
 DAEMON_WEDGE_KILL: str = "daemon_wedge_kill"
 DAEMON_MEMORY_PRESSURE_KILL: str = "daemon_memory_pressure_kill"
 DAEMON_WATCHDOG_NEEDS_OPERATOR: str = "daemon_watchdog_needs_operator"
+DAEMON_SLEEP_CYCLE_STALE: str = "daemon_sleep_cycle_stale"
+CRISIS_MODE_AUTO_EXPIRED: str = "crisis_mode_auto_expired"
 
 TELEMETRY_RGC_WORKER_SUCCESS: str = "rgc_worker_success"
 TELEMETRY_RGC_WORKER_JIT_WARMUP: str = "rgc_worker_jit_warmup"
